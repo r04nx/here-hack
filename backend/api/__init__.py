@@ -1,6 +1,6 @@
 from flask import Blueprint, Flask, jsonify, make_response
-from .geojson import geojson_management
-from .road_merger_api import road_merger_bp
+from .geojson import geojson_management, geojson_bp
+from .templates import templates_bp
 
 from flask_cors import CORS
 from itsdangerous import URLSafeTimedSerializer
@@ -14,7 +14,7 @@ def create_app():
     app.config['SECRET_KEY'] = SECRET_KEY
 
     # Apply CORS to the app with the specific origin
-    CORS(app, resources={r"/*": {"origins": "*"}})
+    CORS(app, resources={r"/*": {"origins": ["*"], "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"], "allow_headers": ["Content-Type", "Authorization"]}})
 
 
     # Serializer setup
@@ -29,8 +29,8 @@ def create_app():
         return response
 
     # Register the blueprints
-    app.register_blueprint(geojson_management, url_prefix='/geojson')
-    app.register_blueprint(road_merger_bp, url_prefix='/api/road-merger')
+    app.register_blueprint(geojson_bp)
+    app.register_blueprint(templates_bp)
 
 
 

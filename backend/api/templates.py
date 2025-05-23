@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request, send_from_directory
+from flask import Blueprint, render_template, jsonify, request, send_from_directory
 import json
 import os
 import uuid
@@ -10,7 +10,7 @@ from .merger import RoadMerger
 load_dotenv()
 
 # Create Blueprint
-road_merger_bp = Blueprint('road_merger', __name__)
+templates_bp = Blueprint('templates', __name__)
 
 # Directory for temporary file storage
 UPLOAD_FOLDER = os.path.join(tempfile.gettempdir(), 'road_merger_uploads')
@@ -24,7 +24,7 @@ road_merger = RoadMerger(similarity_threshold=0.8)
 
 # Load GeoJSON data
 def load_geojson():
-    geojson_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', GEOJSON_PATH)
+    geojson_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), GEOJSON_PATH)
     try:
         with open(geojson_path, 'r', encoding='utf-8') as f:
             return json.load(f)
@@ -33,7 +33,19 @@ def load_geojson():
         with open(geojson_path, 'r', encoding='latin-1') as f:
             return json.load(f)
 
-@road_merger_bp.route('/geojson')
+@templates_bp.route('/')
+def index():
+    return render_template('index.html')
+
+@templates_bp.route('/analyst')
+def analyst():
+    return render_template('analyst.html')
+
+@templates_bp.route('/edit')
+def editor():
+    return render_template('editor.html')
+
+@templates_bp.route('/api/geojson')
 def get_geojson():
     upload_id = request.args.get('upload_id')
     
@@ -57,7 +69,7 @@ def get_geojson():
         data = load_geojson()
         return jsonify(data)
 
-@road_merger_bp.route('/upload-geojson', methods=['POST'])
+@templates_bp.route('/api/upload-geojson', methods=['POST'])
 def upload_geojson():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part'}), 400
@@ -125,7 +137,7 @@ def upload_geojson():
         os.remove(file_path)
         return jsonify({'error': str(e)}), 500
 
-@road_merger_bp.route('/compare-geojson', methods=['POST'])
+@templates_bp.route('/api/compare-geojson', methods=['POST'])
 def compare_geojson():
     data = request.json
     
@@ -166,7 +178,7 @@ def compare_geojson():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@road_merger_bp.route('/approve-changes', methods=['POST'])
+@templates_bp.route('/api/approve-changes', methods=['POST'])
 def approve_changes():
     data = request.json
     
@@ -176,6 +188,8 @@ def approve_changes():
     upload_id = data['upload_id']
     changes = data['changes']
     
+    # In a real application, this would update the database or permanent storage
+    # For now, we'll just save the approved changes to a file
     try:
         approved_path = os.path.join(UPLOAD_FOLDER, upload_id, 'approved_changes.json')
         with open(approved_path, 'w') as f:
@@ -185,149 +199,6 @@ def approve_changes():
             'success': True,
             'message': 'Changes approved successfully'
         })
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@road_merger_bp.route('/save-geojson', methods=['POST'])
-def save_geojson():
-    try:
-        # Get the edited GeoJSON data from the request
-        edited_data = request.json
-        
-        if not edited_data:
-            return jsonify({'success': False, 'error': 'No data provided'}), 400
-        
-        # Validate the GeoJSON structure
-        if 'type' not in edited_data or edited_data['type'] != 'FeatureCollection' or 'features' not in edited_data:
-            return jsonify({'success': False, 'error': 'Invalid GeoJSON format'}), 400
-        
-        # Create a backup of the current file
-        geojson_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', GEOJSON_PATH)
-        backup_path = geojson_path + '.backup.' + str(uuid.uuid4())
-        
-        try:
-            with open(geojson_path, 'r', encoding='utf-8') as f:
-                original_data = f.read()
-        except UnicodeDecodeError:
-            with open(geojson_path, 'r', encoding='latin-1') as f:
-                original_data = f.read()
-            
-        with open(backup_path, 'w', encoding='utf-8') as f:
-            f.write(original_data)
-        
-        # Save the edited data
-        with open(geojson_path, 'w', encoding='utf-8') as f:
-            json.dump(edited_data, f, indent=2, ensure_ascii=False)
-        
-        return jsonify({'success': True, 'message': 'GeoJSON data saved successfully'})
-    
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@road_merger_bp.route('/merge-geojson', methods=['POST'])
-def merge_geojson():
-    try:
-        data = request.json
-        
-        if not data or 'upload_id' not in data:
-            return jsonify({'error': 'Upload ID is required'}), 400
-        
-        upload_id = data['upload_id']
-        uploaded_file_path = os.path.join(UPLOAD_FOLDER, upload_id, 'uploaded.geojson')
-        
-        if not os.path.exists(uploaded_file_path):
-            return jsonify({'error': 'Uploaded file not found'}), 404
-        
-        # Get the original GeoJSON path
-        original_geojson_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', GEOJSON_PATH)
-        
-        # Create output path for merged file
-        output_path = os.path.join(UPLOAD_FOLDER, upload_id, 'merged.geojson')
-        
-        # Merge the roads
-        road_merger.merge_roads(original_geojson_path, uploaded_file_path, output_path)
-        
-        # Read the merged file
-        try:
-            with open(output_path, 'r', encoding='utf-8') as f:
-                merged_data = json.load(f)
-        except UnicodeDecodeError:
-            with open(output_path, 'r', encoding='latin-1') as f:
-                merged_data = json.load(f)
-        
-        return jsonify({
-            'success': True,
-            'message': 'Roads merged successfully',
-            'merged_data': merged_data
-        })
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@road_merger_bp.route('/preview-merge', methods=['POST'])
-def preview_merge():
-    try:
-        data = request.json
-        
-        if not data or 'upload_id' not in data:
-            return jsonify({'error': 'Upload ID is required'}), 400
-        
-        upload_id = data['upload_id']
-        uploaded_file_path = os.path.join(UPLOAD_FOLDER, upload_id, 'uploaded.geojson')
-        
-        if not os.path.exists(uploaded_file_path):
-            return jsonify({'error': 'Uploaded file not found'}), 404
-        
-        # Get the original GeoJSON path
-        original_geojson_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', GEOJSON_PATH)
-        
-        # Create output path for merged file
-        output_path = os.path.join(UPLOAD_FOLDER, upload_id, 'merged.geojson')
-        
-        # Merge the roads
-        road_merger.merge_roads(original_geojson_path, uploaded_file_path, output_path)
-        
-        # Read the merged file
-        try:
-            with open(output_path, 'r', encoding='utf-8') as f:
-                merged_data = json.load(f)
-        except UnicodeDecodeError:
-            with open(output_path, 'r', encoding='latin-1') as f:
-                merged_data = json.load(f)
-        
-        # Get statistics about the merge
-        stats = road_merger.stats
-        
-        return jsonify({
-            'success': True,
-            'message': 'Preview generated successfully',
-            'merged_data': merged_data,
-            'stats': stats
-        })
-    
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@road_merger_bp.route('/download-merged', methods=['GET'])
-def download_merged():
-    try:
-        upload_id = request.args.get('upload_id')
-        
-        if not upload_id:
-            return jsonify({'error': 'Upload ID is required'}), 400
-        
-        merged_file_path = os.path.join(UPLOAD_FOLDER, upload_id, 'merged.geojson')
-        
-        if not os.path.exists(merged_file_path):
-            return jsonify({'error': 'Merged file not found'}), 404
-        
-        return send_from_directory(
-            os.path.dirname(merged_file_path),
-            os.path.basename(merged_file_path),
-            as_attachment=True,
-            download_name='merged_roads.geojson'
-        )
     
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -439,4 +310,152 @@ def are_properties_equal(props1, props2):
         if props2.get(prop) is not None:
             road_props2[prop] = props2[prop]
     
-    return json.dumps(road_props1, sort_keys=True) == json.dumps(road_props2, sort_keys=True) 
+    return json.dumps(road_props1, sort_keys=True) == json.dumps(road_props2, sort_keys=True)
+
+@templates_bp.route('/api/save-geojson', methods=['POST'])
+def save_geojson():
+    try:
+        # Get the edited GeoJSON data from the request
+        edited_data = request.json
+        
+        if not edited_data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        # Validate the GeoJSON structure
+        if 'type' not in edited_data or edited_data['type'] != 'FeatureCollection' or 'features' not in edited_data:
+            return jsonify({'success': False, 'error': 'Invalid GeoJSON format'}), 400
+        
+        # Create a backup of the current file
+        geojson_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), GEOJSON_PATH)
+        backup_path = geojson_path + '.backup.' + str(uuid.uuid4())
+        
+        try:
+            with open(geojson_path, 'r', encoding='utf-8') as f:
+                original_data = f.read()
+        except UnicodeDecodeError:
+            with open(geojson_path, 'r', encoding='latin-1') as f:
+                original_data = f.read()
+            
+        with open(backup_path, 'w', encoding='utf-8') as f:
+            f.write(original_data)
+        
+        # Save the edited data
+        with open(geojson_path, 'w', encoding='utf-8') as f:
+            json.dump(edited_data, f, indent=2, ensure_ascii=False)
+        
+        return jsonify({'success': True, 'message': 'GeoJSON data saved successfully'})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@templates_bp.route('/api/merge-geojson', methods=['POST'])
+def merge_geojson():
+    try:
+        data = request.json
+        
+        if not data or 'upload_id' not in data:
+            return jsonify({'error': 'Upload ID is required'}), 400
+        
+        upload_id = data['upload_id']
+        uploaded_file_path = os.path.join(UPLOAD_FOLDER, upload_id, 'uploaded.geojson')
+        
+        if not os.path.exists(uploaded_file_path):
+            return jsonify({'error': 'Uploaded file not found'}), 404
+        
+        # Get the original GeoJSON path
+        original_geojson_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), GEOJSON_PATH)
+        
+        # Create output path for merged file
+        output_path = os.path.join(UPLOAD_FOLDER, upload_id, 'merged.geojson')
+        
+        # Merge the roads
+        road_merger.merge_roads(original_geojson_path, uploaded_file_path, output_path)
+        
+        # Read the merged file
+        try:
+            with open(output_path, 'r', encoding='utf-8') as f:
+                merged_data = json.load(f)
+        except UnicodeDecodeError:
+            with open(output_path, 'r', encoding='latin-1') as f:
+                merged_data = json.load(f)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Roads merged successfully',
+            'merged_data': merged_data
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@templates_bp.route('/api/preview-merge', methods=['POST'])
+def preview_merge():
+    try:
+        data = request.json
+        
+        if not data or 'upload_id' not in data:
+            return jsonify({'error': 'Upload ID is required'}), 400
+        
+        upload_id = data['upload_id']
+        uploaded_file_path = os.path.join(UPLOAD_FOLDER, upload_id, 'uploaded.geojson')
+        
+        if not os.path.exists(uploaded_file_path):
+            return jsonify({'error': 'Uploaded file not found'}), 404
+        
+        # Get the original GeoJSON path
+        original_geojson_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), GEOJSON_PATH)
+        
+        # Create output path for merged file
+        output_path = os.path.join(UPLOAD_FOLDER, upload_id, 'merged.geojson')
+        
+        # Merge the roads
+        road_merger.merge_roads(original_geojson_path, uploaded_file_path, output_path)
+        
+        # Read the merged file
+        try:
+            with open(output_path, 'r', encoding='utf-8') as f:
+                merged_data = json.load(f)
+        except UnicodeDecodeError:
+            with open(output_path, 'r', encoding='latin-1') as f:
+                merged_data = json.load(f)
+        
+        # Get statistics about the merge
+        stats = road_merger.stats
+        
+        return jsonify({
+            'success': True,
+            'message': 'Preview generated successfully',
+            'merged_data': merged_data,
+            'stats': stats
+        })
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@templates_bp.route('/api/download-merged', methods=['GET'])
+def download_merged():
+    try:
+        upload_id = request.args.get('upload_id')
+        
+        if not upload_id:
+            return jsonify({'error': 'Upload ID is required'}), 400
+        
+        merged_file_path = os.path.join(UPLOAD_FOLDER, upload_id, 'merged.geojson')
+        
+        if not os.path.exists(merged_file_path):
+            return jsonify({'error': 'Merged file not found'}), 404
+        
+        return send_from_directory(
+            os.path.dirname(merged_file_path),
+            os.path.basename(merged_file_path),
+            as_attachment=True,
+            download_name='merged_roads.geojson'
+        )
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Serve static files
+@templates_bp.route('/static/<path:filename>')
+def serve_static(filename):
+    return send_from_directory('static', filename) 
