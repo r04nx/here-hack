@@ -1,8 +1,8 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LogOut, Settings, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToast } from '@/components/ui/use-toast';
 
 interface HeaderProps {
   userType?: 'vendor' | 'analyst' | 'viewer' | 'editor';
@@ -11,12 +11,21 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ userType, userName = 'John Doe' }) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const handleLogout = () => {
-    // Clear user data and redirect to login
+    // Clear user data
     localStorage.removeItem('userType');
     localStorage.removeItem('userName');
-    navigate('/');
+    
+    // Show logout confirmation
+    toast({
+      title: "Logged Out Successfully",
+      description: "You have been logged out of your account.",
+    });
+    
+    // Redirect to landing page
+    navigate('/', { replace: true });
   };
 
   return (
@@ -25,9 +34,9 @@ export const Header: React.FC<HeaderProps> = ({ userType, userName = 'John Doe' 
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-gradient-to-r from-orange-500 to-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">AL</span>
+              <span className="text-white font-bold text-sm">RF</span>
             </div>
-            <h1 className="text-xl font-bold text-gray-900">AutoLink</h1>
+            <h1 className="text-xl font-bold text-gray-900">RoadFusion</h1>
           </div>
           {userType && (
             <div className="bg-orange-100 px-3 py-1 rounded-full">
@@ -44,7 +53,12 @@ export const Header: React.FC<HeaderProps> = ({ userType, userName = 'John Doe' 
           <Button variant="ghost" size="sm">
             <Settings className="w-4 h-4" />
           </Button>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
+          <Button 
+            variant="ghost" 
+            size="sm" 
+            onClick={handleLogout}
+            className="text-red-500 hover:text-red-600 hover:bg-red-50"
+          >
             <LogOut className="w-4 h-4" />
           </Button>
         </div>

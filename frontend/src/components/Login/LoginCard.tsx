@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,22 +42,15 @@ const userTypes = [
 export const LoginCard: React.FC = () => {
   const navigate = useNavigate();
 
-  const handleLogin = (userType: string, route: string) => {
-    // Store user type in localStorage
-    localStorage.setItem('userType', userType);
-    localStorage.setItem('userName', 'John Doe'); // Mock user
-    navigate(route);
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-4xl">
         <div className="text-center mb-12">
           <div className="flex items-center justify-center space-x-3 mb-4">
             <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-blue-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">AL</span>
+              <span className="text-white font-bold text-lg">RF</span>
             </div>
-            <h1 className="text-4xl font-bold text-gray-900">AutoLink</h1>
+            <h1 className="text-4xl font-bold text-gray-900">RoadFusion</h1>
           </div>
           <p className="text-xl text-gray-600">Smart Road Merge Platform</p>
           <p className="text-gray-500 mt-2">Choose your role to access the dashboard</p>
@@ -71,7 +63,7 @@ export const LoginCard: React.FC = () => {
               <Card 
                 key={user.type} 
                 className="hover:shadow-lg transition-all duration-300 cursor-pointer border-2 hover:border-orange-300"
-                onClick={() => handleLogin(user.type, user.route)}
+                onClick={() => navigate(`/signin/${user.type}`)}
               >
                 <CardHeader className="text-center pb-4">
                   <div className={`w-16 h-16 bg-gradient-to-r ${user.color} rounded-xl flex items-center justify-center mx-auto mb-4`}>
@@ -84,7 +76,7 @@ export const LoginCard: React.FC = () => {
                     {user.description}
                   </CardDescription>
                   <Button className="w-full bg-gradient-to-r from-orange-500 to-blue-600 hover:from-orange-600 hover:to-blue-700">
-                    Login as {user.title}
+                    Continue as {user.title}
                   </Button>
                 </CardContent>
               </Card>

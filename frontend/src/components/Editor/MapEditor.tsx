@@ -97,7 +97,7 @@ export const MapEditor: React.FC = () => {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
-              <span className="font-semibold">AutoLink Editor</span>
+              <span className="font-semibold">RoadFusion Editor</span>
             </div>
 
             <Separator orientation="vertical" className="h-6" />
