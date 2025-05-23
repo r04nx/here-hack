@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, send_from_directory
 import json
 import traceback
 from utils import get_db_connection
@@ -203,18 +203,23 @@ def list_geojson():
         
         rows = cursor.fetchall()
         
-        # Convert to list of dictionaries
+        # Convert to list of dictionaries with full GeoJSON data
         data = []
         for row in rows:
-            data.append({
-                'id': row['id'],
-                'name': row['name'],
-                'size': row['size'],
-                'vendor_name': row['vendor_name'],
-                'date_added': row['date_added'],
-                'geojson_data': json.loads(row['geojson_data']),
-                'is_merged': row['is_merged']
-            })
+            try:
+                geojson_data = json.loads(row['geojson_data'])
+                data.append({
+                    'id': row['id'],
+                    'name': row['name'],
+                    'size': row['size'],
+                    'vendor_name': row['vendor_name'],
+                    'date_added': row['date_added'],
+                    'is_merged': row['is_merged'],
+                    'geojson_data': geojson_data  # Include the full GeoJSON data
+                })
+            except json.JSONDecodeError:
+                print(f"Error decoding GeoJSON for ID {row['id']}")
+                continue
 
         return jsonify({
             'success': True,
@@ -234,6 +239,31 @@ def list_geojson():
                 conn.close()
             except Exception as e:
                 print(f"Error closing connection: {str(e)}")
+
+# Example response
+# {
+#     "success": true,
+#     "data": [
+#         {
+#             "id": 1,
+#             "name": "example",
+#             "size": 1234,
+#             "vendor_name": "vendor1",
+#             "date_added": "2024-03-24 12:00:00",
+#             "is_merged": 0,
+#             "geojson_data": {
+#                 "type": "FeatureCollection",
+#                 "features": [
+#                     // Full GeoJSON features here
+#                 ]
+#             }
+#         },
+#         // More entries...
+#     ]
+# }
+
+
+
 
 # Create new GeoJSON file
 @geojson_management.route('/create', methods=['POST'])
@@ -475,4 +505,44 @@ def delete_geojson(geojson_id):
         }), 500
     finally:
         conn.close()
+
+# Fetch GeoJSON file directly from prod directory
+@geojson_management.route('/fetch-file/<filename>', methods=['GET'])
+def fetch_geojson_file(filename):
+    try:
+        # Define the prod directory path
+        prod_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'prod')
+        
+        # Check if file exists
+        file_path = os.path.join(prod_dir, filename)
+        if not os.path.exists(file_path):
+            return jsonify({
+                "success": False,
+                "message": f"File {filename} not found"
+            }), 404
+
+        # Try to read the file with UTF-8 encoding first
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                geojson_data = json.load(f)
+        except UnicodeDecodeError:
+            # Fallback to latin-1 if UTF-8 fails
+            with open(file_path, 'r', encoding='latin-1') as f:
+                geojson_data = json.load(f)
+        except json.JSONDecodeError:
+            return jsonify({
+                "success": False,
+                "message": "Invalid JSON format in file"
+            }), 400
+
+        return jsonify({
+            "success": True,
+            "data": geojson_data
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Error fetching file: {str(e)}"
+        }), 500
         
