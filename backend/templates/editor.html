@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, user-scalable=no">
+    <title>Mumbai GeoJSON Editor</title>
+
+    <!-- XYZ Maps libraries from CDN -->
+    <script src="https://unpkg.com/@here/xyz-maps-common@0.30.0/dist/xyz-maps-common.min.js" type="text/javascript" charset="UTF-8"></script>
+    <script src="https://unpkg.com/@here/xyz-maps-core@0.30.0/dist/xyz-maps-core.min.js" type="text/javascript" charset="UTF-8"></script>
+    <script src="https://unpkg.com/@here/xyz-maps-display@0.30.0/dist/xyz-maps-display.min.js" type="text/javascript" charset="UTF-8"></script>
+    <script src="https://unpkg.com/@here/xyz-maps-editor@0.30.0/dist/xyz-maps-editor.min.js" type="text/javascript" charset="UTF-8"></script>
+
+    <style type="text/css">
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        
+        #map {
+            position: absolute;
+            overflow: hidden;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        
+        .control-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.3);
+            max-width: 300px;
+        }
+        
+        .control-panel h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 8px 12px;
+            margin: 5px 0;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+            text-decoration: none;
+        }
+        
+        .btn:hover {
+            background-color: #0b7dda;
+        }
+        
+        .btn.save {
+            background-color: #4CAF50;
+        }
+        
+        .btn.save:hover {
+            background-color: #45a049;
+        }
+        
+        .btn.cancel {
+            background-color: #f44336;
+        }
+        
+        .btn.cancel:hover {
+            background-color: #d32f2f;
+        }
+    </style>
+</head>
+<body>
+<div id="map"></div>
+
+<div class="control-panel">
+    <h3>Mumbai Road Editor</h3>
+    <p>Edit roads by clicking on them. Use the toolbar to add, modify, or delete features.</p>
+    <button id="save-btn" class="btn save">Save Changes</button>
+    <button id="cancel-btn" class="btn cancel">Cancel</button>
+    <a href="/analyst" class="btn">Back to Analyst View</a>
+</div>
+
+<script type="application/javascript">
+    // Initialize the map and editor
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Initializing map editor...');
+        // Load GeoJSON data
+        fetch('/api/geojson')
+            .then(response => {
+                console.log('GeoJSON response:', response);
+                return response.json();
+            })
+            .then(data => {
+                console.log('GeoJSON data loaded:', data);
+                initializeEditor(data);
+            })
+            .catch(error => {
+                console.error('Error loading GeoJSON data:', error);
+                alert('Failed to load map data. Please try again later.');
+            });
+        
+        // Set up button event listeners
+        document.getElementById('save-btn').addEventListener('click', saveChanges);
+        document.getElementById('cancel-btn').addEventListener('click', cancelChanges);
+    });
+    
+    let editor;
+    let editLayer;
+    let originalData;
+    
+    function initializeEditor(geojsonData) {
+        try {
+            console.log('Initializing editor with data:', geojsonData);
+            // Store original data for cancel operation
+            originalData = JSON.parse(JSON.stringify(geojsonData));
+            
+            // Create a background layer for context
+            const backgroundLayer = new here.xyz.maps.layers.TileLayer({
+                name: 'background',
+                min: 1,
+                max: 20,
+                provider: new here.xyz.maps.providers.OSMProvider({
+                    name: 'OSMProvider'
+                })
+            });
+            
+            // Create a local provider with the GeoJSON data
+            const localProvider = new here.xyz.maps.providers.LocalProvider({
+                name: 'LocalProvider',
+                data: geojsonData
+            });
+            
+            // Create the editable layer
+            editLayer = new here.xyz.maps.layers.TileLayer({
+                name: 'Mumbai Roads',
+                min: 10,
+                max: 20,
+                provider: localProvider
+            });
+            
+            // Calculate the center of the data
+            const bounds = getBounds(geojsonData);
+            console.log('Calculated bounds:', bounds);
+            
+            const center = {
+                latitude: (bounds.north + bounds.south) / 2,
+                longitude: (bounds.east + bounds.west) / 2
+            };
+            console.log('Map center:', center);
+            
+            // Setup the map display
+            const display = new here.xyz.maps.Map(document.getElementById("map"), {
+                zoomLevel: 15,
+                center: center,
+                layers: [backgroundLayer, editLayer]
+            });
+            
+            // Setup the edit engine
+            editor = new here.xyz.maps.editor.Editor(display);
+            
+            // Add the layer to edit engine to enable editing
+            editor.addLayer(editLayer);
+            
+            // Fit the map to show all data
+            display.setViewBounds({
+                north: bounds.north,
+                east: bounds.east,
+                south: bounds.south,
+                west: bounds.west
+            });
+            
+            console.log('Editor initialized successfully');
+        } catch (error) {
+            console.error('Error initializing editor:', error);
+            alert('Error initializing editor: ' + error.message);
+        }
+    }
+    
+    function getBounds(geojsonData) {
+        let north = -90, south = 90, east = -180, west = 180;
+        
+        if (geojsonData && geojsonData.features && geojsonData.features.length > 0) {
+            geojsonData.features.forEach(feature => {
+                if (feature.geometry && feature.geometry.coordinates) {
+                    const coords = feature.geometry.coordinates;
+                    
+                    if (feature.geometry.type === 'Point') {
+                        const lon = coords[0];
+                        const lat = coords[1];
+                        north = Math.max(north, lat);
+                        south = Math.min(south, lat);
+                        east = Math.max(east, lon);
+                        west = Math.min(west, lon);
+                    } else if (feature.geometry.type === 'LineString') {
+                        coords.forEach(point => {
+                            const lon = point[0];
+                            const lat = point[1];
+                            north = Math.max(north, lat);
+                            south = Math.min(south, lat);
+                            east = Math.max(east, lon);
+                            west = Math.min(west, lon);
+                        });
+                    } else if (feature.geometry.type === 'Polygon') {
+                        coords[0].forEach(point => {
+                            const lon = point[0];
+                            const lat = point[1];
+                            north = Math.max(north, lat);
+                            south = Math.min(south, lat);
+                            east = Math.max(east, lon);
+                            west = Math.min(west, lon);
+                        });
+                    }
+                }
+            });
+        } else {
+            // Default to Mumbai if no features found
+            north = 19.2;  // North of Mumbai
+            south = 18.9;  // South of Mumbai
+            east = 72.9;   // East of Mumbai
+            west = 72.7;   // West of Mumbai
+            console.warn('No features found in GeoJSON, using default Mumbai bounds');
+        }
+        
+        return { north, south, east, west };
+    }
+    
+    function saveChanges() {
+        if (!editor || !editLayer) {
+            alert('Editor not initialized');
+            return;
+        }
+        
+        try {
+            // Get the edited GeoJSON data
+            const editedData = editLayer.getProvider().getData();
+            console.log('Saving edited data:', editedData);
+            
+            // Send the data to the server
+            fetch('/api/save-geojson', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(editedData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Changes saved successfully!');
+                } else {
+                    alert('Error saving changes: ' + data.error);
+                }
+            })
+            .catch(error => {
+                console.error('Error saving GeoJSON data:', error);
+                alert('Failed to save changes. Please try again.');
+            });
+        } catch (error) {
+            console.error('Error preparing data for save:', error);
+            alert('An error occurred while preparing data for save: ' + error.message);
+        }
+    }
+    
+    function cancelChanges() {
+        if (confirm('Are you sure you want to cancel all changes? All unsaved edits will be lost.')) {
+            // Reload the page to reset the editor
+            window.location.reload();
+        }
+    }
+</script>
+</body>
+</html>

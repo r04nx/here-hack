@@ -1,0 +1,2259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mumbai GeoJSON Analyst View</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        
+        /* Floating panels */
+        .overlay-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(40, 40, 40, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            max-width: 300px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        .layer-panel {
+            position: absolute;
+            top: 10px;
+            left: 330px;
+            z-index: 1000;
+            background: rgba(40, 40, 40, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            max-width: 300px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .upload-section {
+            margin-bottom: 20px;
+        }
+        .upload-section h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        .file-input-container {
+            position: relative;
+            margin-bottom: 15px;
+        }
+        .file-input-label {
+            display: inline-block;
+            padding: 8px 12px;
+            background-color: #2196F3;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .file-input-label:hover {
+            background-color: #0b7dda;
+        }
+        .file-input {
+            position: absolute;
+            left: -9999px;
+        }
+        .file-name {
+            margin-top: 5px;
+            font-size: 12px;
+            word-break: break-all;
+        }
+        .comparison-options {
+            margin-top: 15px;
+        }
+        .comparison-options label {
+            display: block;
+            margin-bottom: 10px;
+        }
+        .color-picker {
+            width: 30px;
+            height: 30px;
+            padding: 0;
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+        
+        .overlay-options {
+            margin: 15px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .color-preview {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            display: inline-block;
+        }
+        .comparison-button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-top: 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        .comparison-button:hover {
+            background-color: #45a049;
+        }
+        .comparison-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .legend-item.difference {
+            color: #FF4500;
+            font-weight: bold;
+        }
+        .mismatch-stats {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        
+        .mismatch-legend {
+            margin-top: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .compact-stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            font-size: 13px;
+        }
+        
+        .compact-stats .stat-item {
+            background-color: rgba(0, 0, 0, 0.15);
+            padding: 4px 8px;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .compact-stats .stat-count {
+            font-weight: bold;
+        }
+        
+        .compact-legend {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+        }
+        
+        .compact-legend .legend-item {
+            margin-bottom: 0;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+        
+        .action-button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        
+        .approve-all {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .approve-all:hover {
+            background-color: #45a049;
+        }
+        
+        .approval-popup {
+            padding: 15px;
+            max-width: 300px;
+        }
+        
+        .approval-popup h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .approval-popup p {
+            margin-bottom: 15px;
+            color: #555;
+        }
+        
+        .approval-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .approval-button {
+            flex: 1;
+            padding: 8px 0;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        
+        .approve-button {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .approve-button:hover {
+            background-color: #45a049;
+        }
+        
+        .reject-button {
+            background-color: #f44336;
+            color: white;
+        }
+        
+        .reject-button:hover {
+            background-color: #d32f2f;
+        }
+        
+        .mismatch-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #FF5252;
+            color: white;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+        .info-panel {
+            padding: 10px;
+            background: rgba(40, 40, 40, 0.9);
+            color: white;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            max-width: 300px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        /* New attractive road popup styles */
+        .road-popup {
+            width: 280px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            font-family: 'Arial', sans-serif;
+            background: white;
+            color: #333;
+        }
+        
+        .road-popup.dark-theme {
+            background: #2a2a2a;
+            color: #f0f0f0;
+        }
+        
+        .road-header {
+            padding: 12px 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+        }
+        
+        .road-header h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .road-icon {
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .road-svg-container {
+            padding: 5px 15px;
+            background: rgba(0,0,0,0.05);
+        }
+        
+        .road-popup.dark-theme .road-svg-container {
+            background: rgba(255,255,255,0.05);
+        }
+        
+        .road-details {
+            padding: 10px 15px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            font-size: 13px;
+        }
+        
+        .road-detail-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .detail-icon {
+            font-size: 14px;
+            width: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .detail-label {
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        
+        .detail-value {
+            margin-left: auto;
+            opacity: 0.8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70px;
+        }
+        
+        .road-footer {
+            padding: 8px 15px;
+            background: rgba(0,0,0,0.05);
+            font-size: 11px;
+            text-align: right;
+            color: #777;
+        }
+        
+        .road-popup.dark-theme .road-footer {
+            background: rgba(255,255,255,0.05);
+            color: #aaa;
+        }
+        
+        .road-id {
+            font-family: monospace;
+            opacity: 0.7;
+        }
+        .legend {
+            background: rgba(40, 40, 40, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .dark-theme {
+            background: rgba(40, 40, 40, 0.9);
+            color: white;
+        }
+        .light-theme {
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+        }
+        .legend-item {
+            margin-bottom: 5px;
+        }
+        .color-box {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+        }
+        .control-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(40, 40, 40, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            max-width: 300px;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        
+        .layer-box {
+            margin-top: 20px;
+        }
+        
+        .layer-box h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        
+        .layers-list {
+            background-color: rgba(60, 60, 60, 0.5);
+            border-radius: 4px;
+            padding: 10px;
+        }
+        
+        .layer-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 5px;
+            border-radius: 3px;
+            transition: background-color 0.2s;
+        }
+        
+        .layer-item:hover {
+            background-color: rgba(80, 80, 80, 0.5);
+        }
+        
+        .layer-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .layer-item input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        
+        .layer-item label {
+            flex-grow: 1;
+            cursor: pointer;
+        }
+        
+        .layer-controls {
+            display: flex;
+            gap: 5px;
+        }
+        
+        .layer-control-btn {
+            background: none;
+            border: none;
+            color: #ccc;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+        
+        .layer-control-btn:hover {
+            background-color: rgba(100, 100, 100, 0.5);
+            color: white;
+        }
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 60px;
+            height: 34px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: .4s;
+            border-radius: 34px;
+        }
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 26px;
+            width: 26px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+        input:checked + .slider {
+            background-color: #2196F3;
+        }
+        input:checked + .slider:before {
+            transform: translateX(26px);
+        }
+        .switch-label {
+            margin-left: 10px;
+            vertical-align: super;
+        }
+        .map-styles {
+            margin-top: 15px;
+        }
+        .style-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 8px;
+        }
+        .style-btn {
+            padding: 6px 10px;
+            background-color: #444;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+        .style-btn:hover {
+            background-color: #555;
+        }
+        .style-btn.active {
+            background-color: #2196F3;
+            transform: scale(1.05);
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 1200px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .close:hover {
+            color: black;
+        }
+        .preview-map-container {
+            height: 500px;
+            margin: 20px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .merge-stats {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+        .preview-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 20px;
+        }
+        .preview-actions button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            color: white;
+        }
+        .preview-actions button:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <!-- Floating panels for controls -->
+    <div class="overlay-panel" id="overlay-panel">
+        <h3>Smart Road Data Merger</h3>
+        <div class="upload-section">
+            <p>Upload a GeoJSON file to detect road mismatches</p>
+            <div class="file-input-container">
+                <label class="file-input-label" for="geojson-upload">Choose File</label>
+                <input type="file" id="geojson-upload" class="file-input" accept=".geojson,.json">
+                <div class="file-name" id="file-name">No file selected</div>
+            </div>
+            
+            <div class="overlay-options">
+                <label for="overlay-color">Overlay Color:</label>
+                <input type="color" id="overlay-color" value="#3388ff" class="color-picker">
+                <div class="color-preview" id="color-preview" style="background-color: #3388ff;"></div>
+            </div>
+            
+            <button id="compare-button" class="comparison-button" disabled>Analyze Mismatches</button>
+        </div>
+        
+        <div class="layer-box">
+            <h4>Layer Hierarchy</h4>
+            <div class="layers-list" id="layers-list">
+                <div class="layer-item">
+                    <input type="checkbox" id="base-layer-toggle" checked disabled>
+                    <label for="base-layer-toggle">Mumbai Base Map</label>
+                </div>
+                <!-- Additional layers will be added here dynamically -->
+            </div>
+        </div>
+        
+        <div id="mismatch-stats" class="mismatch-stats" style="display: none;">
+            <h4>Mismatch Analysis</h4>
+            <div id="stats-content" class="compact-stats"></div>
+            <div class="mismatch-legend compact-legend">
+                <div class="legend-item">
+                    <span class="color-box" style="background-color: #FF5252;"></span>
+                    <span>Missing</span>
+                </div>
+                <div class="legend-item">
+                    <span class="color-box" style="background-color: #4CAF50;"></span>
+                    <span>New</span>
+                </div>
+                <div class="legend-item">
+                    <span class="color-box" style="background-color: #FFC107;"></span>
+                    <span>Modified</span>
+                </div>
+            </div>
+            <div class="action-buttons">
+                <button id="approve-all-button" class="action-button approve-all">Approve All Changes</button>
+                <button id="preview-merge-button" class="action-button preview-merge" style="background-color: #2196F3; margin-top: 10px;">Preview Merge</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="control-panel">
+        <h3>View Controls</h3>
+        <label class="toggle-switch">
+            <input type="checkbox" id="viewToggle">
+            <span class="slider"></span>
+        </label>
+        <span class="switch-label">Simplified View</span>
+        
+        <div class="map-styles">
+            <h4>Map Styles</h4>
+            <div class="style-buttons">
+                <button class="style-btn" data-style="standard">Standard</button>
+                <button class="style-btn" data-style="satellite">Satellite</button>
+                <button class="style-btn" data-style="streets">Streets</button>
+                <button class="style-btn" data-style="outdoors">Outdoors</button>
+                <button class="style-btn" data-style="light">Light</button>
+                <button class="style-btn" data-style="dark">Dark</button>
+                <button class="style-btn" data-style="osm">OSM</button>
+            </div>
+        </div>
+        
+        <div style="margin-top: 15px;">
+            <a href="/" style="color: #2196F3; text-decoration: none; margin-right: 15px;">Back to Normal View</a>
+            <a href="/edit" style="color: #4CAF50; text-decoration: none;">Open Editor</a>
+        </div>
+    </div>
+    
+    <div id="map"></div>
+    
+    <!-- Add Preview Modal -->
+    <div id="preview-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Merge Preview</h3>
+                <span class="close">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="merge-stats">
+                    <h4>Merge Statistics</h4>
+                    <div id="merge-stats-content"></div>
+                </div>
+                <div class="preview-map-container">
+                    <div id="preview-map"></div>
+                </div>
+                <div class="preview-actions">
+                    <button id="download-merged-button" class="action-button download-merged" style="background-color: #4CAF50;">Download Merged File</button>
+                    <button id="apply-merge-button" class="action-button apply-merge" style="background-color: #2196F3;">Apply Changes</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+            
+    <!-- PouchDB for tile caching -->
+    <script src="https://cdn.jsdelivr.net/npm/pouchdb@7.3.0/dist/pouchdb.min.js"></script>
+    
+    <!-- Leaflet.TileLayer.PouchDBCached plugin -->
+    <script>
+    /* Leaflet.TileLayer.PouchDBCached - Simple offline tile caching */
+    (function(root, factory) {
+        if (typeof define === 'function' && define.amd) {
+            define(['leaflet', 'pouchdb'], factory);
+        } else if (typeof module === 'object' && module.exports) {
+            module.exports = factory(require('leaflet'), require('pouchdb'));
+        } else {
+            factory(root.L, root.PouchDB);
+        }
+    }(this, function(L, PouchDB) {
+        L.TileLayer.addInitHook(function() {
+            if (!this.options.useCache) {
+                this._db = null;
+                return;
+            }
+
+            this._db = new PouchDB('offline-tiles');
+            this.on('tileload', function(e) {
+                var tile = e.tile;
+                if (!tile.src) return;
+
+                var xhr = new XMLHttpRequest();
+                xhr.open('GET', tile.src, true);
+                xhr.responseType = 'blob';
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        var tileUrl = tile.src.split(/[\?#]/)[0]; // Remove query params and hash
+                        var tileId = tileUrl.replace(/[^a-zA-Z0-9]/g, '_');
+                        
+                        var reader = new FileReader();
+                        reader.onloadend = function() {
+                            var base64data = reader.result;
+                            this._db.get(tileId).then(function(doc) {
+                                return this._db.put({
+                                    _id: tileId,
+                                    _rev: doc._rev,
+                                    url: tileUrl,
+                                    data: base64data,
+                                    timestamp: new Date().getTime()
+                                });
+                            }.bind(this)).catch(function() {
+                                return this._db.put({
+                                    _id: tileId,
+                                    url: tileUrl,
+                                    data: base64data,
+                                    timestamp: new Date().getTime()
+                                });
+                            }.bind(this));
+                        }.bind(this);
+                        reader.readAsDataURL(xhr.response);
+                    }
+                }.bind(this);
+                xhr.send();
+            });
+
+            this.on('tileloadstart', function(e) {
+                var tile = e.tile;
+                var tileUrl = tile.src ? tile.src.split(/[\?#]/)[0] : '';
+                if (!tileUrl) return;
+                
+                var tileId = tileUrl.replace(/[^a-zA-Z0-9]/g, '_');
+                this._db.get(tileId).then(function(doc) {
+                    tile.src = doc.data;
+                }).catch(function() {
+                    // Not in cache, load from network
+                });
+            });
+        });
+    }));
+    </script>
+    
+    <script>
+        // Initialize the map centered on Mumbai
+        const map = L.map('map').setView([19.0760, 72.8777], 12);
+        
+        // Initialize PouchDB with a unique database name to avoid conflicts
+        const db = new PouchDB('offline-tiles-' + Date.now());
+        
+        // Set up tile caching options
+        const cacheOptions = {
+            useCache: true,
+            crossOrigin: true,
+            cacheMaxAge: 24 * 60 * 60 * 1000 * 30, // 30 days
+            maxRequests: 6
+        };
+        
+        // Define all available tile layers with caching
+        const tileLayers = {
+            standard: L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Tiles style by <a href="https://www.hotosm.org/" target="_blank">Humanitarian OpenStreetMap Team</a>',
+                maxZoom: 19,
+                crossOrigin: true,
+                useCache: true,
+                cacheMaxAge: 24 * 60 * 60 * 1000 * 30 // 30 days
+            }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                maxZoom: 19,
+                crossOrigin: true,
+                useCache: true,
+                cacheMaxAge: 24 * 60 * 60 * 1000 * 30 // 30 days
+            }),
+            streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19,
+                crossOrigin: true,
+                useCache: true,
+                cacheMaxAge: 24 * 60 * 60 * 1000 * 30 // 30 days
+            }),
+            outdoors: L.tileLayer('https://{s}.tile.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey=6170aad10dfd42a38d4d8c709a536f38', {
+                attribution: '&copy; <a href="http://www.thunderforest.com/">Thunderforest</a>, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 22,
+                crossOrigin: true,
+                useCache: true,
+                cacheMaxAge: 24 * 60 * 60 * 1000 * 30 // 30 days
+            }),
+            light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20,
+                crossOrigin: true,
+                useCache: true,
+                cacheMaxAge: 24 * 60 * 60 * 1000 * 30 // 30 days
+            }),
+            dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20,
+                crossOrigin: true,
+                useCache: true,
+                cacheMaxAge: 24 * 60 * 60 * 1000 * 30 // 30 days
+            }),
+            osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19,
+                crossOrigin: true,
+                useCache: true,
+                cacheMaxAge: 24 * 60 * 60 * 1000 * 30 // 30 days
+            })
+        };
+        
+        // Start with dark theme
+        tileLayers.dark.addTo(map);
+        let currentTileLayer = tileLayers.dark;
+        
+        // Set the initial active button
+        document.querySelector('[data-style="dark"]').classList.add('active');
+        
+        // Define styles for different feature types - brighter colors for dark background
+        const normalStyles = {
+            motorway: { color: '#FF6B6B', weight: 5, opacity: 0.9 },
+            trunk: { color: '#4ECDC4', weight: 4, opacity: 0.9 },
+            primary: { color: '#FFC857', weight: 3, opacity: 0.9 },
+            secondary: { color: '#2EC4B6', weight: 2.5, opacity: 0.9 },
+            tertiary: { color: '#E71D36', weight: 2, opacity: 0.9 },
+            residential: { color: '#8ECAE6', weight: 1.5, opacity: 0.9 },
+            pedestrian: { color: '#BF40BF', weight: 1, fillColor: '#BF40BF', fillOpacity: 0.5, opacity: 0.9 },
+            services: { color: '#A7E8BD', weight: 1, fillColor: '#A7E8BD', fillOpacity: 0.5, opacity: 0.9 },
+            default: { color: '#FFD166', weight: 1, opacity: 0.9 }
+        };
+        
+        // Define styles for simplified view on light background (dark roads)
+        const lightGreyStyles = {
+            motorway: { color: '#000000', weight: 5, opacity: 0.9 },
+            trunk: { color: '#202020', weight: 4, opacity: 0.9 },
+            primary: { color: '#303030', weight: 3, opacity: 0.9 },
+            secondary: { color: '#404040', weight: 2.5, opacity: 0.9 },
+            tertiary: { color: '#505050', weight: 2, opacity: 0.9 },
+            residential: { color: '#606060', weight: 1.5, opacity: 0.9 },
+            pedestrian: { color: '#707070', weight: 1, fillColor: '#707070', fillOpacity: 0.3, opacity: 0.9 },
+            services: { color: '#808080', weight: 1, fillColor: '#808080', fillOpacity: 0.3, opacity: 0.9 },
+            default: { color: '#404040', weight: 1, opacity: 0.9 }
+        };
+        
+        // Define styles for simplified view on dark background (bright/white roads)
+        const darkGreyStyles = {
+            motorway: { color: '#FFFFFF', weight: 5, opacity: 0.9 },
+            trunk: { color: '#F0F0F0', weight: 4, opacity: 0.9 },
+            primary: { color: '#E0E0E0', weight: 3, opacity: 0.9 },
+            secondary: { color: '#D0D0D0', weight: 2.5, opacity: 0.9 },
+            tertiary: { color: '#C0C0C0', weight: 2, opacity: 0.9 },
+            residential: { color: '#B0B0B0', weight: 1.5, opacity: 0.9 },
+            pedestrian: { color: '#A0A0A0', weight: 1, fillColor: '#A0A0A0', fillOpacity: 0.3, opacity: 0.9 },
+            services: { color: '#909090', weight: 1, fillColor: '#909090', fillOpacity: 0.3, opacity: 0.9 },
+            default: { color: '#CCCCCC', weight: 1, opacity: 0.9 }
+        };
+        
+        // Start with light grey styles as default for simplified view
+        let greyStyles = lightGreyStyles;
+        
+        // Current active styles
+        let activeStyles = normalStyles;
+        
+        // Function to determine style based on feature properties
+        function getStyle(feature) {
+            if (!feature.properties) return activeStyles.default;
+            
+            const highway = feature.properties.highway;
+            return activeStyles[highway] || activeStyles.default;
+        }
+        
+        // Function to create popup content
+        function createPopupContent(feature) {
+            if (!feature.properties) return "No properties";
+            
+            // Determine the theme class based on current style
+            const themeClass = activeStyles === normalStyles ? 'dark-theme' : 'light-theme';
+            
+            // Get road type and determine appropriate icon and color
+            const roadType = feature.properties.highway || 'unknown';
+            const roadName = feature.properties.name || 'Unnamed Road';
+            const lanes = feature.properties.lanes || '1';
+            const isOneWay = feature.properties.oneway === 'yes';
+            const maxspeed = feature.properties.maxspeed || 'N/A';
+            
+            // Map road types to icons and colors
+            const roadIcons = {
+                'motorway': { icon: '🛣️', color: '#FF6B6B', gradient: 'linear-gradient(135deg, #FF6B6B, #FF8E8E)' },
+                'trunk': { icon: '🛣️', color: '#4ECDC4', gradient: 'linear-gradient(135deg, #4ECDC4, #7EEAE1)' },
+                'primary': { icon: '🛣️', color: '#FFC857', gradient: 'linear-gradient(135deg, #FFC857, #FFD57E)' },
+                'secondary': { icon: '🛣️', color: '#2EC4B6', gradient: 'linear-gradient(135deg, #2EC4B6, #5EDFD1)' },
+                'tertiary': { icon: '🛣️', color: '#E71D36', gradient: 'linear-gradient(135deg, #E71D36, #F04D61)' },
+                'residential': { icon: '🏠', color: '#8ECAE6', gradient: 'linear-gradient(135deg, #8ECAE6, #B1DAEF)' },
+                'pedestrian': { icon: '🚶', color: '#BF40BF', gradient: 'linear-gradient(135deg, #BF40BF, #D373D3)' },
+                'service': { icon: '🔧', color: '#A7E8BD', gradient: 'linear-gradient(135deg, #A7E8BD, #C4F0D1)' },
+                'track': { icon: '🚵', color: '#8B4513', gradient: 'linear-gradient(135deg, #8B4513, #A86642)' },
+                'path': { icon: '👣', color: '#556B2F', gradient: 'linear-gradient(135deg, #556B2F, #708D3E)' },
+                'footway': { icon: '👣', color: '#556B2F', gradient: 'linear-gradient(135deg, #556B2F, #708D3E)' },
+                'cycleway': { icon: '🚲', color: '#1E90FF', gradient: 'linear-gradient(135deg, #1E90FF, #5AACFF)' },
+                'unknown': { icon: '❓', color: '#888888', gradient: 'linear-gradient(135deg, #888888, #AAAAAA)' }
+            };
+            
+            // Get road icon and color info
+            const roadInfo = roadIcons[roadType] || roadIcons['unknown'];
+            
+            // Create SVG representation of the road
+            const laneCount = parseInt(lanes) || 1;
+            let roadSvg = `<svg width="100%" height="30" xmlns="http://www.w3.org/2000/svg">
+                <rect width="100%" height="30" fill="${roadInfo.gradient ? roadInfo.gradient : roadInfo.color}" rx="4" ry="4"/>`;
+            
+            // Add lane markers
+            const laneWidth = 100 / (laneCount + 1);
+            for (let i = 1; i <= laneCount; i++) {
+                const xPos = i * laneWidth;
+                roadSvg += `<line x1="${xPos}%" y1="0" x2="${xPos}%" y2="30" stroke="white" stroke-width="2" stroke-dasharray="5,5"/>`;
+            }
+            
+            // Add direction arrow if one-way
+            if (isOneWay) {
+                roadSvg += `<polygon points="85,15 75,5 75,25" fill="white"/>`;
+            }
+            
+            roadSvg += `</svg>`;
+            
+            // Build the popup content with a more attractive design
+            let content = `
+            <div class="road-popup ${themeClass}">
+                <div class="road-header" style="background: ${roadInfo.gradient || roadInfo.color}">
+                    <span class="road-icon">${roadInfo.icon}</span>
+                    <h3>${roadName}</h3>
+                </div>
+                <div class="road-svg-container">
+                    ${roadSvg}
+                </div>
+                <div class="road-details">
+                    <div class="road-detail-item">
+                        <span class="detail-icon">🛣️</span>
+                        <span class="detail-label">Type:</span>
+                        <span class="detail-value">${roadType.charAt(0).toUpperCase() + roadType.slice(1)}</span>
+                    </div>
+                    <div class="road-detail-item">
+                        <span class="detail-icon">🚗</span>
+                        <span class="detail-label">Lanes:</span>
+                        <span class="detail-value">${lanes}</span>
+                    </div>
+                    <div class="road-detail-item">
+                        <span class="detail-icon">${isOneWay ? '↗️' : '↔️'}</span>
+                        <span class="detail-label">Direction:</span>
+                        <span class="detail-value">${isOneWay ? 'One-way' : 'Two-way'}</span>
+                    </div>
+                    <div class="road-detail-item">
+                        <span class="detail-icon">⚡</span>
+                        <span class="detail-label">Speed:</span>
+                        <span class="detail-value">${maxspeed}</span>
+                    </div>`;
+            
+            // Add any additional important properties
+            const importantProps = ['surface', 'width', 'ref', 'bridge', 'tunnel'];
+            for (const key of importantProps) {
+                if (feature.properties[key]) {
+                    let icon = '🔹';
+                    if (key === 'surface') icon = '🧱';
+                    if (key === 'width') icon = '↔️';
+                    if (key === 'ref') icon = '🔢';
+                    if (key === 'bridge') icon = '🌉';
+                    if (key === 'tunnel') icon = '🚇';
+                    
+                    content += `
+                    <div class="road-detail-item">
+                        <span class="detail-icon">${icon}</span>
+                        <span class="detail-label">${key.charAt(0).toUpperCase() + key.slice(1)}:</span>
+                        <span class="detail-value">${feature.properties[key]}</span>
+                    </div>`;
+                }
+            }
+            
+            content += `
+                </div>
+                <div class="road-footer">
+                    <span class="road-id">${feature.properties['@id'] || 'No ID'}</span>
+                </div>
+            </div>`;
+            
+            return content;
+        }
+        
+        // Variable to store the GeoJSON layer
+        let geojsonLayer;
+        // Variable to store the legend control
+        let legend;
+        
+        // Function to update the map with the current style
+        function updateMap(data) {
+            // Remove existing GeoJSON layer if it exists
+            if (geojsonLayer) {
+                map.removeLayer(geojsonLayer);
+            }
+            
+            // Add GeoJSON layer with current styles
+            geojsonLayer = L.geoJSON(data, {
+                style: getStyle,
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(createPopupContent(feature));
+                }
+            }).addTo(map);
+            
+            // Fit map bounds to GeoJSON layer
+            map.fitBounds(geojsonLayer.getBounds());
+            
+            // Remove existing legend if it exists
+            if (legend) {
+                map.removeControl(legend);
+            }
+            
+            // Only add legend in normal view
+            if (activeStyles === normalStyles) {
+                // Create legend
+                legend = L.control({ position: 'bottomright' });
+                legend.onAdd = function(map) {
+                    const div = L.DomUtil.create('div', 'legend');
+                    div.innerHTML = '<h4>Road Types</h4>';
+                    
+                    for (const type in normalStyles) {
+                        if (type !== 'default') {
+                            div.innerHTML += `
+                                <div class="legend-item">
+                                    <span class="color-box" style="background-color: ${normalStyles[type].color}"></span>
+                                    ${type.charAt(0).toUpperCase() + type.slice(1)}
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    return div;
+                };
+                legend.addTo(map);
+            }
+        }
+        
+        // Toggle switch event listener for simplified view
+        document.getElementById('viewToggle').addEventListener('change', function(e) {
+            if (e.target.checked) {
+                // Switch to simplified view based on current map theme
+                const isDarkTheme = ['dark', 'satellite'].includes(getCurrentMapStyle());
+                
+                if (isDarkTheme) {
+                    // Use bright/white roads on dark backgrounds
+                    greyStyles = darkGreyStyles;
+                } else {
+                    // Use dark roads on light backgrounds
+                    greyStyles = lightGreyStyles;
+                }
+                
+                activeStyles = greyStyles;
+                
+                // Update info panel and legend styles based on current theme
+                updateUITheme(isDarkTheme ? 'dark' : 'light');
+            } else {
+                // Switch back to normal view
+                activeStyles = normalStyles;
+            }
+            
+            // Fetch GeoJSON data and update the map
+            fetch('/api/geojson')
+                .then(response => response.json())
+                .then(data => updateMap(data))
+                .catch(error => console.error('Error loading GeoJSON data:', error));
+        });
+        
+        // Helper function to get current map style
+        function getCurrentMapStyle() {
+            const activeButton = document.querySelector('.style-btn.active');
+            return activeButton ? activeButton.getAttribute('data-style') : 'dark';
+        }
+        
+        // Helper function to update UI theme
+        function updateUITheme(theme) {
+            if (theme === 'light') {
+                document.querySelectorAll('.info-panel, .legend, .control-panel').forEach(el => {
+                    el.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+                    el.style.color = '#333';
+                });
+            } else {
+                document.querySelectorAll('.info-panel, .legend, .control-panel').forEach(el => {
+                    el.style.backgroundColor = 'rgba(40, 40, 40, 0.8)';
+                    el.style.color = 'white';
+                });
+            }
+        }
+        
+        // Map style button event listeners
+        document.querySelectorAll('.style-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const style = this.getAttribute('data-style');
+                
+                // Update active button
+                document.querySelectorAll('.style-btn').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Remove current tile layer
+                if (currentTileLayer) {
+                    map.removeLayer(currentTileLayer);
+                }
+                
+                // Add selected tile layer
+                tileLayers[style].addTo(map);
+                currentTileLayer = tileLayers[style];
+                
+                // Determine if this is a dark theme
+                const isDarkTheme = ['dark', 'satellite'].includes(style);
+                
+                // Update UI theme
+                updateUITheme(isDarkTheme ? 'dark' : 'light');
+                
+                // If simplified view is enabled, update grey styles based on theme
+                if (document.getElementById('viewToggle').checked) {
+                    if (isDarkTheme) {
+                        // Use bright/white roads on dark backgrounds
+                        greyStyles = darkGreyStyles;
+                    } else {
+                        // Use dark roads on light backgrounds
+                        greyStyles = lightGreyStyles;
+                    }
+                    activeStyles = greyStyles;
+                } else {
+                    activeStyles = normalStyles;
+                }
+                
+                // Update the map
+                fetch('/api/geojson')
+                    .then(response => response.json())
+                    .then(data => updateMap(data))
+                    .catch(error => console.error('Error loading GeoJSON data:', error));
+            });
+        });
+        
+        // Variables to store GeoJSON data and layers
+        let originalGeoJSON;
+        let uploadedGeoJSON;
+        let mismatches = [];
+        let mismatchLayers = [];
+        let approvedChanges = [];
+        let rejectedChanges = [];
+        let overlayColor = '#3388ff'; // Default overlay color
+        
+        // File upload event listener
+        document.getElementById('geojson-upload').addEventListener('change', function(e) {
+            const fileName = e.target.files[0] ? e.target.files[0].name : 'No file selected';
+            document.getElementById('file-name').textContent = fileName;
+            
+            // Enable/disable analyze button based on file selection
+            document.getElementById('compare-button').disabled = !e.target.files[0];
+        });
+        
+        // Color picker event listener
+        document.getElementById('overlay-color').addEventListener('input', function(e) {
+            overlayColor = e.target.value;
+            document.getElementById('color-preview').style.backgroundColor = overlayColor;
+        });
+        
+        // Analyze mismatches button event listener
+        document.getElementById('compare-button').addEventListener('click', function() {
+            const fileInput = document.getElementById('geojson-upload');
+            const file = fileInput.files[0];
+            
+            if (file) {
+                // Create FormData object to send the file
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                // Show loading state
+                document.getElementById('compare-button').textContent = 'Analyzing...';
+                document.getElementById('compare-button').disabled = true;
+                
+                // First upload the file
+                fetch('/api/upload-geojson', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    // Store the upload ID
+                    const uploadId = data.upload_id;
+                    currentUploadId = uploadId;
+                    
+                    // Now compare the uploaded GeoJSON with the original
+                    return fetch('/api/compare-geojson', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            upload_id: uploadId
+                        })
+                    });
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    // Fetch the uploaded GeoJSON file to display it with the selected color
+                    fetch('/api/geojson?upload_id=' + currentUploadId)
+                        .then(response => response.json())
+                        .then(geoJsonData => {
+                            // Store the uploaded GeoJSON data
+                            uploadedGeoJSON = geoJsonData;
+                            
+                            // Get the current color from the color picker
+                            overlayColor = document.getElementById('overlay-color').value;
+                            console.log('Using overlay color:', overlayColor);
+                            
+                            // Process the mismatches
+                            displayMismatches(data.mismatches);
+                            
+                            // Update the mismatch stats panel
+                            updateMismatchStats(data.mismatches);
+                            
+                            // Show the mismatch stats panel
+                            document.getElementById('mismatch-stats').style.display = 'block';
+                            
+                            // Reset button state
+                            document.getElementById('compare-button').textContent = 'Analyze Mismatches';
+                            document.getElementById('compare-button').disabled = false;
+                            
+                            // Add layer to the hierarchy
+                            addLayerToHierarchy(file.name, 'uploaded');
+                        })
+                        .catch(error => {
+                            console.error('Error fetching uploaded GeoJSON:', error);
+                            // Continue with mismatch display even if we can't get the full GeoJSON
+                            displayMismatches(data.mismatches);
+                            updateMismatchStats(data.mismatches);
+                            document.getElementById('mismatch-stats').style.display = 'block';
+                            document.getElementById('compare-button').textContent = 'Analyze Mismatches';
+                            document.getElementById('compare-button').disabled = false;
+                            addLayerToHierarchy(file.name, 'uploaded');
+                        });
+                })
+                .catch(error => {
+                    console.error('Error processing GeoJSON:', error);
+                    alert('Error: ' + error.message);
+                    
+                    // Reset button state
+                    document.getElementById('compare-button').textContent = 'Analyze Mismatches';
+                    document.getElementById('compare-button').disabled = false;
+                });
+            }
+        });
+        
+        // Function to add a layer to the hierarchy
+        function addLayerToHierarchy(name, type) {
+            const layersList = document.getElementById('layers-list');
+            const layerId = 'layer-' + Date.now();
+            
+            const layerItem = document.createElement('div');
+            layerItem.className = 'layer-item';
+            layerItem.id = layerId;
+            
+            layerItem.innerHTML = `
+                <input type="checkbox" id="${layerId}-toggle" checked>
+                <label for="${layerId}-toggle">${name}</label>
+                <div class="layer-controls">
+                    <button class="layer-control-btn" title="Remove layer" data-action="remove">×</button>
+                </div>
+            `;
+            
+            layersList.appendChild(layerItem);
+            
+            // Add event listeners for layer controls
+            const toggleCheckbox = document.getElementById(`${layerId}-toggle`);
+            toggleCheckbox.addEventListener('change', function() {
+                toggleLayerVisibility(layerId, this.checked);
+            });
+            
+            const removeButton = layerItem.querySelector('[data-action="remove"]');
+            removeButton.addEventListener('click', function() {
+                removeLayer(layerId);
+            });
+        }
+        
+        // Function to toggle layer visibility
+        function toggleLayerVisibility(layerId, visible) {
+            // Toggle visibility of the mismatch layers
+            mismatchLayers.forEach(ml => {
+                if (visible) {
+                    map.addLayer(ml.layer);
+                } else {
+                    map.removeLayer(ml.layer);
+                }
+            });
+        }
+        
+        // Function to remove a layer
+        function removeLayer(layerId) {
+            // Remove the layer from the DOM
+            const layerItem = document.getElementById(layerId);
+            if (layerItem) {
+                layerItem.remove();
+            }
+            
+            // Clear the mismatches from the map
+            clearMismatches();
+            
+            // Hide the mismatch stats panel
+            document.getElementById('mismatch-stats').style.display = 'none';
+            
+            // Reset the file input
+            document.getElementById('geojson-upload').value = '';
+            document.getElementById('file-name').textContent = 'No file selected';
+            document.getElementById('compare-button').disabled = true;
+        }
+        
+        // Function to analyze mismatches between two GeoJSON datasets
+        function analyzeMismatches(original, uploaded) {
+            // Clear any previous mismatches
+            clearMismatches();
+            
+            // Find mismatches between the two datasets
+            const mismatches = findMismatches(original, uploaded);
+            
+            // Display mismatches on the map
+            displayMismatches(mismatches);
+            
+            // Update the mismatch stats panel
+            updateMismatchStats(mismatches);
+            
+            // Show the mismatch stats panel
+            document.getElementById('mismatch-stats').style.display = 'block';
+            
+            // Add event listener for approve all button
+            document.getElementById('approve-all-button').addEventListener('click', approveAllChanges);
+        }
+        
+        // Function to find mismatches between two GeoJSON datasets
+        function findMismatches(original, uploaded) {
+            const result = {
+                missingRoads: [],
+                newRoads: [],
+                modifiedRoads: []
+            };
+            
+            // Create lookup maps for faster comparison
+            const originalFeatureMap = createFeatureMap(original.features);
+            const uploadedFeatureMap = createFeatureMap(uploaded.features);
+            
+            // Find new and modified roads in uploaded dataset
+            uploaded.features.forEach(uploadedFeature => {
+                // Only process road features (with highway property)
+                if (!uploadedFeature.properties || !uploadedFeature.properties.highway) {
+                    return;
+                }
+                
+                const id = uploadedFeature.id || (uploadedFeature.properties && uploadedFeature.properties['@id']);
+                
+                if (!id) {
+                    // If no ID, treat as new road
+                    result.newRoads.push(uploadedFeature);
+                    return;
+                }
+                
+                const originalFeature = originalFeatureMap[id];
+                
+                if (!originalFeature) {
+                    // Road exists in uploaded but not in original
+                    result.newRoads.push(uploadedFeature);
+                } else if (!areGeometriesEqual(originalFeature.geometry, uploadedFeature.geometry)) {
+                    // Road exists but geometry is different
+                    result.modifiedRoads.push({
+                        original: originalFeature,
+                        modified: uploadedFeature,
+                        id: id,
+                        changeType: 'geometry'
+                    });
+                } else if (!arePropertiesEqual(originalFeature.properties, uploadedFeature.properties)) {
+                    // Road exists but properties are different
+                    result.modifiedRoads.push({
+                        original: originalFeature,
+                        modified: uploadedFeature,
+                        id: id,
+                        changeType: 'properties'
+                    });
+                }
+            });
+            
+            // Find missing roads (in original but not in uploaded)
+            original.features.forEach(originalFeature => {
+                // Only process road features (with highway property)
+                if (!originalFeature.properties || !originalFeature.properties.highway) {
+                    return;
+                }
+                
+                const id = originalFeature.id || (originalFeature.properties && originalFeature.properties['@id']);
+                
+                if (id && !uploadedFeatureMap[id]) {
+                    // Road exists in original but not in uploaded
+                    result.missingRoads.push(originalFeature);
+                }
+            });
+            
+            return result;
+        }
+        
+        // Helper function to create a map of features by ID
+        function createFeatureMap(features) {
+            const map = {};
+            features.forEach(feature => {
+                // Only include road features
+                if (feature.properties && feature.properties.highway) {
+                    const id = feature.id || (feature.properties && feature.properties['@id']);
+                    if (id) {
+                        map[id] = feature;
+                    }
+                }
+            });
+            return map;
+        }
+        
+        // Helper function to compare geometries
+        function areGeometriesEqual(geom1, geom2) {
+            if (!geom1 || !geom2) return false;
+            if (geom1.type !== geom2.type) return false;
+            
+            // Simple string comparison of coordinates
+            return JSON.stringify(geom1.coordinates) === JSON.stringify(geom2.coordinates);
+        }
+        
+        // Helper function to compare properties
+        function arePropertiesEqual(props1, props2) {
+            if (!props1 || !props2) return false;
+            
+            // Compare only road-related properties
+            const roadProps1 = {};
+            const roadProps2 = {};
+            
+            const relevantProps = ['highway', 'name', 'lanes', 'oneway', 'surface', 'maxspeed'];
+            
+            relevantProps.forEach(prop => {
+                if (props1[prop] !== undefined) roadProps1[prop] = props1[prop];
+                if (props2[prop] !== undefined) roadProps2[prop] = props2[prop];
+            });
+            
+            return JSON.stringify(roadProps1) === JSON.stringify(roadProps2);
+        }
+        
+        // Function to display mismatches on the map
+        function displayMismatches(mismatches) {
+            // Clear any previous mismatches first
+            clearMismatches();
+            
+            // First, add the uploaded GeoJSON with the user-selected color as a base overlay
+            if (uploadedGeoJSON) {
+                console.log('Adding uploaded GeoJSON with color:', overlayColor);
+                
+                // Create a custom style function to ensure color is applied
+                const overlayStyle = function(feature) {
+                    return {
+                        color: overlayColor,
+                        weight: 3,
+                        opacity: 0.7,
+                        fillColor: overlayColor,
+                        fillOpacity: 0.2
+                    };
+                };
+                
+                const uploadedLayer = L.geoJSON(uploadedGeoJSON, {
+                    style: overlayStyle,
+                    onEachFeature: function(feature, layer) {
+                        if (feature.properties && feature.properties.name) {
+                            layer.bindTooltip(feature.properties.name);
+                        }
+                    }
+                }).addTo(map);
+                
+                mismatchLayers.push({
+                    type: 'base-overlay',
+                    layer: uploadedLayer
+                });
+            }
+            
+            // Display missing roads (red) - these are fixed colors for the mismatches
+            if (mismatches.missingRoads && mismatches.missingRoads.length > 0) {
+                const missingLayer = L.geoJSON({
+                    type: 'FeatureCollection',
+                    features: mismatches.missingRoads
+                }, {
+                    style: {
+                        color: '#FF5252', // Fixed color for missing roads
+                        weight: 4,
+                        opacity: 0.8,
+                        dashArray: '5, 5'
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const id = feature.id || (feature.properties && feature.properties['@id']);
+                        layer.bindPopup(createApprovalPopup(feature, 'missing', id));
+                        layer.on('mouseover', function() {
+                            this.setStyle({ weight: 6, opacity: 1 });
+                        });
+                        layer.on('mouseout', function() {
+                            this.setStyle({ weight: 4, opacity: 0.8 });
+                        });
+                    }
+                }).addTo(map);
+                
+                mismatchLayers.push({
+                    type: 'missing',
+                    layer: missingLayer
+                });
+            }
+            
+            // Display new roads (green) - these are fixed colors for the mismatches
+            if (mismatches.newRoads && mismatches.newRoads.length > 0) {
+                const newLayer = L.geoJSON({
+                    type: 'FeatureCollection',
+                    features: mismatches.newRoads
+                }, {
+                    style: {
+                        color: '#4CAF50', // Fixed color for new roads
+                        weight: 4,
+                        opacity: 0.8
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const id = feature.id || (feature.properties && feature.properties['@id']);
+                        layer.bindPopup(createApprovalPopup(feature, 'new', id));
+                        layer.on('mouseover', function() {
+                            this.setStyle({ weight: 6, opacity: 1 });
+                        });
+                        layer.on('mouseout', function() {
+                            this.setStyle({ weight: 4, opacity: 0.8 });
+                        });
+                    }
+                }).addTo(map);
+                
+                mismatchLayers.push({
+                    type: 'new',
+                    layer: newLayer
+                });
+            }
+            
+            // Display modified roads (yellow) - these are fixed colors for the mismatches
+            if (mismatches.modifiedRoads && mismatches.modifiedRoads.length > 0) {
+                const modifiedFeatures = mismatches.modifiedRoads.map(item => {
+                    const feature = JSON.parse(JSON.stringify(item.modified));
+                    feature.properties._changeType = item.changeType;
+                    feature.properties._originalProps = JSON.stringify(item.original.properties);
+                    return feature;
+                });
+                
+                const modifiedLayer = L.geoJSON({
+                    type: 'FeatureCollection',
+                    features: modifiedFeatures
+                }, {
+                    style: {
+                        color: '#FFC107', // Fixed color for modified roads
+                        weight: 4,
+                        opacity: 0.8
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const id = feature.id || (feature.properties && feature.properties['@id']);
+                        const changeType = feature.properties._changeType;
+                        layer.bindPopup(createApprovalPopup(feature, 'modified', id, changeType));
+                        layer.on('mouseover', function() {
+                            this.setStyle({ weight: 6, opacity: 1 });
+                        });
+                        layer.on('mouseout', function() {
+                            this.setStyle({ weight: 4, opacity: 0.8 });
+                        });
+                    }
+                }).addTo(map);
+                
+                mismatchLayers.push({
+                    type: 'modified',
+                    layer: modifiedLayer
+                });
+            }
+            
+            // Fit map to show all mismatches
+            if (mismatchLayers.length > 0) {
+                const bounds = L.featureGroup(mismatchLayers.map(ml => ml.layer)).getBounds();
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+        
+        // Function to create an approval popup for a mismatch
+        function createApprovalPopup(feature, type, id, changeType) {
+            const div = document.createElement('div');
+            div.className = 'approval-popup';
+            
+            let title = '';
+            let description = '';
+            
+            const roadName = feature.properties.name || 'Unnamed road';
+            const roadType = feature.properties.highway || 'Unknown type';
+            
+            if (type === 'missing') {
+                title = 'Missing Road';
+                description = `This road appears to be missing in the new data. It's a ${roadType} road${feature.properties.name ? ' named "' + feature.properties.name + '"' : ''}.`;
+            } else if (type === 'new') {
+                title = 'New Road';
+                description = `This is a new ${roadType} road${feature.properties.name ? ' named "' + feature.properties.name + '"' : ''} that doesn't exist in the current data.`;
+            } else if (type === 'modified') {
+                if (changeType === 'geometry') {
+                    title = 'Modified Road Geometry';
+                    description = `The geometry of this ${roadType} road${feature.properties.name ? ' named "' + feature.properties.name + '"' : ''} has been modified.`;
+                } else {
+                    title = 'Modified Road Properties';
+                    description = `The properties of this ${roadType} road${feature.properties.name ? ' named "' + feature.properties.name + '"' : ''} have been modified.`;
+                    
+                    // Add details about what properties changed
+                    if (feature.properties._originalProps) {
+                        try {
+                            const originalProps = JSON.parse(feature.properties._originalProps);
+                            description += '<br><br><strong>Changes:</strong><ul>';
+                            
+                            for (const key in feature.properties) {
+                                if (!key.startsWith('_') && feature.properties[key] !== originalProps[key]) {
+                                    const oldVal = originalProps[key] || 'none';
+                                    const newVal = feature.properties[key] || 'none';
+                                    description += `<li>${key}: ${oldVal} → ${newVal}</li>`;
+                                }
+                            }
+                            
+                            description += '</ul>';
+                        } catch (e) {
+                            console.error('Error parsing original properties:', e);
+                        }
+                    }
+                }
+            }
+            
+            div.innerHTML = `
+                <h3>${title}</h3>
+                <p>${description}</p>
+                <div class="approval-actions">
+                    <button class="approval-button approve-button" data-id="${id}" data-type="${type}">
+                        <span>✓</span> Approve
+                    </button>
+                    <button class="approval-button reject-button" data-id="${id}" data-type="${type}">
+                        <span>✗</span> Reject
+                    </button>
+                </div>
+            `;
+            
+            // Need to add event listeners after the popup is added to the DOM
+            setTimeout(() => {
+                const approveBtn = div.querySelector('.approve-button');
+                const rejectBtn = div.querySelector('.reject-button');
+                
+                if (approveBtn) {
+                    approveBtn.addEventListener('click', function() {
+                        approveChange(id, type, feature);
+                        map.closePopup();
+                    });
+                }
+                
+                if (rejectBtn) {
+                    rejectBtn.addEventListener('click', function() {
+                        rejectChange(id, type, feature);
+                        map.closePopup();
+                    });
+                }
+            }, 10);
+            
+            return div;
+        }
+        
+        // Store the current upload ID
+        let currentUploadId = null;
+        
+        // Function to approve a change
+        function approveChange(id, type, feature) {
+            // Add to approved changes
+            approvedChanges.push({
+                id: id,
+                type: type,
+                feature: feature
+            });
+            
+            // Update UI to show approval
+            updateMismatchStats();
+            
+            // Send the approval to the server
+            if (currentUploadId) {
+                fetch('/api/approve-changes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        upload_id: currentUploadId,
+                        changes: {
+                            type: 'single',
+                            action: 'approve',
+                            id: id,
+                            change_type: type,
+                            feature: feature
+                        }
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error approving change:', data.error);
+                    } else {
+                        console.log(`Approved ${type} road with ID ${id}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error approving change:', error);
+                });
+            }
+        }
+        
+        // Function to reject a change
+        function rejectChange(id, type, feature) {
+            // Add to rejected changes
+            rejectedChanges.push({
+                id: id,
+                type: type,
+                feature: feature
+            });
+            
+            // Update UI to show rejection
+            updateMismatchStats();
+            
+            // Send the rejection to the server
+            if (currentUploadId) {
+                fetch('/api/approve-changes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        upload_id: currentUploadId,
+                        changes: {
+                            type: 'single',
+                            action: 'reject',
+                            id: id,
+                            change_type: type,
+                            feature: feature
+                        }
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error rejecting change:', data.error);
+                    } else {
+                        console.log(`Rejected ${type} road with ID ${id}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error rejecting change:', error);
+                });
+            }
+        }
+        
+        // Function to approve all changes
+        function approveAllChanges() {
+            // Collect all changes
+            const allChanges = {
+                missingRoads: mismatchLayers.find(ml => ml.type === 'missing')?.layer.getLayers().map(l => l.feature) || [],
+                newRoads: mismatchLayers.find(ml => ml.type === 'new')?.layer.getLayers().map(l => l.feature) || [],
+                modifiedRoads: mismatchLayers.find(ml => ml.type === 'modified')?.layer.getLayers().map(l => l.feature) || []
+            };
+            
+            // Send all approvals to the server
+            if (currentUploadId) {
+                fetch('/api/approve-changes', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        upload_id: currentUploadId,
+                        changes: {
+                            type: 'all',
+                            action: 'approve',
+                            data: allChanges
+                        }
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        console.error('Error approving all changes:', data.error);
+                        alert('Error approving changes: ' + data.error);
+                    } else {
+                        alert('All changes have been approved and will be applied to the map data.');
+                        
+                        // Clear the map and reset
+                        clearMismatches();
+                        document.getElementById('mismatch-stats').style.display = 'none';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error approving all changes:', error);
+                    alert('Error approving changes: ' + error.message);
+                });
+            } else {
+                alert('All changes have been approved and will be applied to the map data.');
+                
+                // Clear the map and reset
+                clearMismatches();
+                document.getElementById('mismatch-stats').style.display = 'none';
+            }
+        }
+        
+        // Function to clear mismatches from the map
+        function clearMismatches() {
+            // Remove all mismatch layers from the map
+            mismatchLayers.forEach(ml => {
+                map.removeLayer(ml.layer);
+            });
+            
+            // Reset arrays
+            mismatchLayers = [];
+            approvedChanges = [];
+            rejectedChanges = [];
+        }
+        
+        // Function to update the mismatch stats panel
+        function updateMismatchStats() {
+            const statsContent = document.getElementById('stats-content');
+            const missingCount = mismatchLayers.find(ml => ml.type === 'missing')?.layer.getLayers().length || 0;
+            const newCount = mismatchLayers.find(ml => ml.type === 'new')?.layer.getLayers().length || 0;
+            const modifiedCount = mismatchLayers.find(ml => ml.type === 'modified')?.layer.getLayers().length || 0;
+            
+            const totalCount = missingCount + newCount + modifiedCount;
+            const approvedCount = approvedChanges.length;
+            const rejectedCount = rejectedChanges.length;
+            const pendingCount = totalCount - approvedCount - rejectedCount;
+            
+            // Create compact stats layout
+            let html = '';
+            
+            // Total stat
+            html += `<div class="stat-item">
+                <span>Total:</span>
+                <span class="stat-count">${totalCount}</span>
+            </div>`;
+            
+            // Pending stat
+            html += `<div class="stat-item">
+                <span>Pending:</span>
+                <span class="stat-count">${pendingCount}</span>
+            </div>`;
+            
+            // Approved stat
+            html += `<div class="stat-item">
+                <span>Approved:</span>
+                <span class="stat-count">${approvedCount}</span>
+            </div>`;
+            
+            // Rejected stat
+            html += `<div class="stat-item">
+                <span>Rejected:</span>
+                <span class="stat-count">${rejectedCount}</span>
+            </div>`;
+            
+            // Add type counts only if they exist
+            if (missingCount > 0) {
+                html += `<div class="stat-item" style="background-color: rgba(255, 82, 82, 0.2);">
+                    <span>Missing:</span>
+                    <span class="stat-count">${missingCount}</span>
+                </div>`;
+            }
+            
+            if (newCount > 0) {
+                html += `<div class="stat-item" style="background-color: rgba(76, 175, 80, 0.2);">
+                    <span>New:</span>
+                    <span class="stat-count">${newCount}</span>
+                </div>`;
+            }
+            
+            if (modifiedCount > 0) {
+                html += `<div class="stat-item" style="background-color: rgba(255, 193, 7, 0.2);">
+                    <span>Modified:</span>
+                    <span class="stat-count">${modifiedCount}</span>
+                </div>`;
+            }
+            
+            if (totalCount === 0) {
+                html = '<div class="stat-item">No mismatches found.</div>';
+            }
+            
+            statsContent.innerHTML = html;
+        }
+        
+        // Theme change handler for the floating panels
+        function updatePanelsTheme(theme) {
+            const panels = document.querySelectorAll('.overlay-panel, .layer-panel, .control-panel');
+            
+            if (theme === 'light') {
+                panels.forEach(panel => {
+                    panel.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                    panel.style.color = '#333';
+                });
+            } else {
+                panels.forEach(panel => {
+                    panel.style.backgroundColor = 'rgba(40, 40, 40, 0.9)';
+                    panel.style.color = 'white';
+                });
+            }
+        }
+        
+        // Update the updateUITheme function to include the panels
+        const originalUpdateUITheme = updateUITheme;
+        updateUITheme = function(theme) {
+            originalUpdateUITheme(theme);
+            updatePanelsTheme(theme);
+        };
+        
+        // Fetch GeoJSON data on initial load
+        fetch('/api/geojson')
+            .then(response => response.json())
+            .then(data => {
+                originalGeoJSON = data;
+                updateMap(data);
+            })
+            .catch(error => console.error('Error loading GeoJSON data:', error));
+
+        // Add merge button event listener
+        document.getElementById('merge-button').addEventListener('click', function() {
+            if (!currentUploadId) {
+                alert('Please upload and analyze a GeoJSON file first.');
+                return;
+            }
+            
+            // Show loading state
+            this.textContent = 'Merging...';
+            this.disabled = true;
+            
+            // Call the merge endpoint
+            fetch('/api/merge-geojson', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    upload_id: currentUploadId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Update the map with merged data
+                updateMap(data.merged_data);
+                
+                // Show success message
+                alert('Roads merged successfully! The map has been updated with the merged data.');
+                
+                // Clear the mismatches
+                clearMismatches();
+                document.getElementById('mismatch-stats').style.display = 'none';
+                
+                // Reset the file input
+                document.getElementById('geojson-upload').value = '';
+                document.getElementById('file-name').textContent = 'No file selected';
+                document.getElementById('compare-button').disabled = true;
+            })
+            .catch(error => {
+                console.error('Error merging roads:', error);
+                alert('Error merging roads: ' + error.message);
+            })
+            .finally(() => {
+                // Reset button state
+                this.textContent = 'Merge Roads';
+                this.disabled = false;
+            });
+        });
+
+        // Initialize preview map variable
+        let previewMap = null;
+
+        // Function to initialize preview map
+        function initPreviewMap(data) {
+            // Destroy existing preview map if it exists
+            if (previewMap) {
+                previewMap.remove();
+            }
+            
+            // Create new preview map
+            previewMap = L.map('preview-map').setView([19.0760, 72.8777], 12);
+            
+            // Add the current tile layer
+            currentTileLayer.addTo(previewMap);
+            
+            // Add the merged GeoJSON data
+            L.geoJSON(data, {
+                style: getStyle,
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(createPopupContent(feature));
+                }
+            }).addTo(previewMap);
+            
+            // Fit map to show all features
+            previewMap.fitBounds(L.geoJSON(data).getBounds());
+        }
+
+        // Function to display merge statistics
+        function displayMergeStats(stats) {
+            const statsContent = document.getElementById('merge-stats-content');
+            if (!statsContent) return;
+            
+            statsContent.innerHTML = `
+                <div class="stat-item">
+                    <span>Total roads in file 1:</span>
+                    <span class="stat-count">${stats.total_roads_file1}</span>
+                </div>
+                <div class="stat-item">
+                    <span>Total roads in file 2:</span>
+                    <span class="stat-count">${stats.total_roads_file2}</span>
+                </div>
+                <div class="stat-item">
+                    <span>Matched roads:</span>
+                    <span class="stat-count">${stats.matched_roads}</span>
+                </div>
+                <div class="stat-item">
+                    <span>Unmatched roads from file 1:</span>
+                    <span class="stat-count">${stats.unmatched_roads_file1}</span>
+                </div>
+                <div class="stat-item">
+                    <span>Unmatched roads from file 2:</span>
+                    <span class="stat-count">${stats.unmatched_roads_file2}</span>
+                </div>
+                <div class="stat-item">
+                    <span>Match rate:</span>
+                    <span class="stat-count">${((stats.matched_roads / Math.max(stats.total_roads_file1, stats.total_roads_file2)) * 100).toFixed(2)}%</span>
+                </div>
+            `;
+        }
+
+        // Add preview merge button event listener
+        document.getElementById('preview-merge-button').addEventListener('click', function() {
+            if (!currentUploadId) {
+                alert('Please upload and analyze a GeoJSON file first.');
+                return;
+            }
+            
+            // Show loading state
+            this.textContent = 'Generating Preview...';
+            this.disabled = true;
+            
+            // Call the preview endpoint
+            fetch('/api/preview-merge', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    upload_id: currentUploadId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Display merge statistics
+                displayMergeStats(data.stats);
+                
+                // Initialize preview map
+                initPreviewMap(data.merged_data);
+                
+                // Show the preview modal
+                const modal = document.getElementById('preview-modal');
+                if (modal) {
+                    modal.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                console.error('Error generating preview:', error);
+                alert('Error generating preview: ' + error.message);
+            })
+            .finally(() => {
+                // Reset button state
+                this.textContent = 'Preview Merge';
+                this.disabled = false;
+            });
+        });
+
+        // Add download button event listener
+        const downloadButton = document.getElementById('download-merged-button');
+        if (downloadButton) {
+            downloadButton.addEventListener('click', function() {
+                if (!currentUploadId) {
+                    alert('No merged file available.');
+                    return;
+                }
+                
+                // Trigger download
+                window.location.href = `/api/download-merged?upload_id=${currentUploadId}`;
+            });
+        }
+
+        // Add apply changes button event listener
+        const applyButton = document.getElementById('apply-merge-button');
+        if (applyButton) {
+            applyButton.addEventListener('click', function() {
+                if (!currentUploadId) {
+                    alert('No merged file available.');
+                    return;
+                }
+                
+                // Show loading state
+                this.textContent = 'Applying Changes...';
+                this.disabled = true;
+                
+                // Call the merge endpoint
+                fetch('/api/merge-geojson', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        upload_id: currentUploadId
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        throw new Error(data.error);
+                    }
+                    
+                    // Update the main map with merged data
+                    updateMap(data.merged_data);
+                    
+                    // Show success message
+                    alert('Changes applied successfully!');
+                    
+                    // Close the preview modal
+                    const modal = document.getElementById('preview-modal');
+                    if (modal) {
+                        modal.style.display = 'none';
+                    }
+                    
+                    // Clear the mismatches
+                    clearMismatches();
+                    document.getElementById('mismatch-stats').style.display = 'none';
+                    
+                    // Reset the file input
+                    document.getElementById('geojson-upload').value = '';
+                    document.getElementById('file-name').textContent = 'No file selected';
+                    document.getElementById('compare-button').disabled = true;
+                })
+                .catch(error => {
+                    console.error('Error applying changes:', error);
+                    alert('Error applying changes: ' + error.message);
+                })
+                .finally(() => {
+                    // Reset button state
+                    this.textContent = 'Apply Changes';
+                    this.disabled = false;
+                });
+            });
+        }
+
+        // Add close button event listener for the modal
+        const closeButton = document.querySelector('.close');
+        if (closeButton) {
+            closeButton.addEventListener('click', function() {
+                const modal = document.getElementById('preview-modal');
+                if (modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        }
+
+        // Close modal when clicking outside
+        window.addEventListener('click', function(event) {
+            const modal = document.getElementById('preview-modal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

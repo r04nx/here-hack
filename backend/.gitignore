@@ -21,6 +21,7 @@ wheels/
 *.egg
 
 # Virtual Environment
+.venv/
 venv/
 env/
 ENV/
@@ -33,7 +34,7 @@ ENV/
 *.swo
 
 # Database
-*.db
+.db
 *.sqlite3
 *.sqlite
 

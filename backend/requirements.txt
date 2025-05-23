@@ -41,3 +41,11 @@ wcwidth
 Werkzeug
 zope.event
 zope.interface
+Werkzeug
+python-dotenv
+geopandas
+numpy
+shapely
+scipy
+pandas
+tqdm

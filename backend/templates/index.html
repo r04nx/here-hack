@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mumbai GeoJSON Visualization</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        .info-panel {
+            padding: 10px;
+            background: rgba(40, 40, 40, 0.9);
+            color: white;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            max-width: 300px;
+        }
+        .legend {
+            background: rgba(40, 40, 40, 0.8);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+        }
+        .legend-item {
+            margin-bottom: 5px;
+        }
+        .color-box {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            margin-right: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <script>
+        // Initialize the map centered on Mumbai
+        const map = L.map('map').setView([19.0760, 72.8777], 12);
+        
+        // Add CartoDB dark matter (minimal dark/grey background) tile layer
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+            subdomains: 'abcd',
+            maxZoom: 20
+        }).addTo(map);
+        
+        // Define styles for different feature types - brighter colors for dark background
+        const styles = {
+            motorway: { color: '#FF6B6B', weight: 5, opacity: 0.9 },
+            trunk: { color: '#4ECDC4', weight: 4, opacity: 0.9 },
+            primary: { color: '#FFC857', weight: 3, opacity: 0.9 },
+            secondary: { color: '#2EC4B6', weight: 2.5, opacity: 0.9 },
+            tertiary: { color: '#E71D36', weight: 2, opacity: 0.9 },
+            residential: { color: '#8ECAE6', weight: 1.5, opacity: 0.9 },
+            pedestrian: { color: '#BF40BF', weight: 1, fillColor: '#BF40BF', fillOpacity: 0.5, opacity: 0.9 },
+            services: { color: '#A7E8BD', weight: 1, fillColor: '#A7E8BD', fillOpacity: 0.5, opacity: 0.9 },
+            default: { color: '#FFD166', weight: 1, opacity: 0.9 }
+        };
+        
+        // Function to determine style based on feature properties
+        function getStyle(feature) {
+            if (!feature.properties) return styles.default;
+            
+            const highway = feature.properties.highway;
+            return styles[highway] || styles.default;
+        }
+        
+        // Function to create popup content
+        function createPopupContent(feature) {
+            if (!feature.properties) return "No properties";
+            
+            let content = '<div class="info-panel">';
+            content += `<h3>${feature.properties.name || 'Unnamed'}</h3>`;
+            content += `<p>Type: ${feature.properties.highway || 'N/A'}</p>`;
+            
+            // Add any additional properties
+            for (const key in feature.properties) {
+                if (!['name', 'highway', '@id'].includes(key)) {
+                    content += `<p>${key}: ${feature.properties[key]}</p>`;
+                }
+            }
+            
+            content += '</div>';
+            return content;
+        }
+        
+        // Fetch GeoJSON data from our API endpoint
+        fetch('/api/geojson')
+            .then(response => response.json())
+            .then(data => {
+                // Add GeoJSON layer to map
+                const geojsonLayer = L.geoJSON(data, {
+                    style: getStyle,
+                    onEachFeature: (feature, layer) => {
+                        layer.bindPopup(createPopupContent(feature));
+                    }
+                }).addTo(map);
+                
+                // Fit map bounds to GeoJSON layer
+                map.fitBounds(geojsonLayer.getBounds());
+                
+                // Create legend
+                const legend = L.control({ position: 'bottomright' });
+                legend.onAdd = function(map) {
+                    const div = L.DomUtil.create('div', 'legend');
+                    div.innerHTML = '<h4>Road Types</h4>';
+                    
+                    for (const type in styles) {
+                        if (type !== 'default') {
+                            div.innerHTML += `
+                                <div class="legend-item">
+                                    <span class="color-box" style="background-color: ${styles[type].color}"></span>
+                                    ${type.charAt(0).toUpperCase() + type.slice(1)}
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    return div;
+                };
+                legend.addTo(map);
+            })
+            .catch(error => console.error('Error loading GeoJSON data:', error));
+    </script>
+</body>
+</html>
