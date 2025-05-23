@@ -1,0 +1,86 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road1",
+        "name": "Main Street",
+        "type": "primary",
+        "speed_limit": 50,
+        "lanes": 2,
+        "oneway": false
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [72.8776, 19.0760],
+          [72.8780, 19.0765],
+          [72.8785, 19.0770],
+          [72.8790, 19.0775]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road2",
+        "name": "Oak Avenue",
+        "type": "secondary",
+        "speed_limit": 40,
+        "lanes": 1,
+        "oneway": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [72.8785, 19.0770],
+          [72.8790, 19.0765],
+          [72.8795, 19.0760]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road3",
+        "name": "Park Road",
+        "type": "residential",
+        "speed_limit": 30,
+        "lanes": 1,
+        "oneway": false
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [72.8790, 19.0775],
+          [72.8795, 19.0780],
+          [72.8800, 19.0785]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "intersection1",
+        "type": "intersection",
+        "traffic_signals": true
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [72.8785, 19.0770]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "traffic_signal1",
+        "highway": "traffic_signals"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [72.8790, 19.0775]
+      }
+    }
+  ]
+}
