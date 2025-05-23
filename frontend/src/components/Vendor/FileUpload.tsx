@@ -1,4 +1,3 @@
-
 import React, { useCallback, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +7,7 @@ import { Upload, File, CheckCircle, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface FileUploadProps {
-  onFileUpload: (file: File) => void;
+  onFileUpload: (file: File, geojsonData: any) => Promise<void>;
 }
 
 const supportedFormats = [
@@ -28,20 +27,21 @@ export const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload }) => {
       setIsUploading(true);
       setUploadProgress(0);
 
-      // Simulate upload progress
-      const interval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 100) {
-            clearInterval(interval);
-            setIsUploading(false);
-            setUploadedFiles(prev => [...prev, file.name]);
-            onFileUpload(file);
-            toast.success('File uploaded successfully!');
-            return 100;
-          }
-          return prev + 10;
-        });
-      }, 200);
+      const reader = new FileReader();
+      reader.onload = async (e) => {
+        try {
+          const geojsonData = JSON.parse(e.target?.result as string);
+          await onFileUpload(file, geojsonData);
+          setUploadedFiles(prev => [...prev, file.name]);
+          toast.success('File uploaded successfully!');
+        } catch (err) {
+          toast.error('Invalid GeoJSON file.');
+        } finally {
+          setIsUploading(false);
+          setUploadProgress(100);
+        }
+      };
+      reader.readAsText(file);
     }
   }, [onFileUpload]);
 
