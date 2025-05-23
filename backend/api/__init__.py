@@ -2,13 +2,15 @@ from flask import Blueprint, Flask, jsonify, make_response
 from .geojson import geojson_management, geojson_bp
 from .templates import templates_bp
 from .ai_merger import ai_merger_bp
+import os
 
 from flask_cors import CORS
 from itsdangerous import URLSafeTimedSerializer
 
 
 def create_app():
-    app = Flask(__name__)
+    app = Flask(__name__, 
+                template_folder=os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'templates'))
 
     SECRET_KEY = 'SUPER_SECRET_KEY'
     app.secret_key = SECRET_KEY  # Required for flashing messages
@@ -33,8 +35,6 @@ def create_app():
     app.register_blueprint(geojson_bp)
     app.register_blueprint(templates_bp)
     app.register_blueprint(ai_merger_bp)
-
-
 
     return app
 
