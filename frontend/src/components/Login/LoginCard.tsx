@@ -47,9 +47,11 @@ export const LoginCard: React.FC = () => {
       <div className="w-full max-w-4xl">
         <div className="text-center mb-12">
           <div className="flex items-center justify-center space-x-3 mb-4">
-            <div className="w-12 h-12 bg-gradient-to-r from-orange-500 to-blue-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold text-lg">RF</span>
-            </div>
+            <img 
+              src="/assets/logo-no-bg.png" 
+              alt="RoadFusion Logo" 
+              className="h-12 w-auto"
+            />
             <h1 className="text-4xl font-bold text-gray-900">RoadFusion</h1>
           </div>
           <p className="text-xl text-gray-600">Smart Road Merge Platform</p>

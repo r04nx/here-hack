@@ -57,6 +57,14 @@ export function SignInCard({
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-blue-50 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
+        <div className="flex items-center justify-center mb-8">
+          <img 
+            src="/assets/logo-no-bg.png" 
+            alt="RoadFusion Logo" 
+            className="h-10 w-auto"
+          />
+        </div>
+
         <Button 
           variant="ghost" 
           className="mb-4"

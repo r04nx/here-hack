@@ -15,18 +15,27 @@ export default function LandingPage() {
             backgroundPosition: 'center',
           }}
         >
-          <div className="absolute inset-0 bg-black/40" />
+          <div className="absolute inset-0 bg-black/75" />
         </div>
         
         <div className="container relative z-10">
           <div className="max-w-2xl text-white">
-            <h1 className="text-5xl font-bold mb-6">
-              Navigate the Future with RoadFusion
-            </h1>
-            <p className="text-xl mb-8">
-              Experience intelligent navigation powered by real-time data and advanced analytics. 
-              Transform your journey with precise location technology.
-            </p>
+            <div className="flex flex-col items-start space-y-6 mb-8">
+              <div className="bg-white/90 rounded-xl p-4 backdrop-blur-sm">
+                <img 
+                  src="/assets/logo-no-bg.png" 
+                  alt="RoadFusion Logo" 
+                  className="h-24 w-auto"
+                />
+              </div>
+              <h1 className="text-5xl font-bold">
+                Navigate the Future with RoadFusion
+              </h1>
+              <p className="text-xl">
+                Experience intelligent navigation powered by real-time data and advanced analytics. 
+                Transform your journey with precise location technology.
+              </p>
+            </div>
             <div className="flex gap-4">
               <Button size="lg" asChild>
                 <Link to="/login">Try Now <ArrowRight className="ml-2" /></Link>
