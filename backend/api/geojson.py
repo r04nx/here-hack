@@ -4,6 +4,9 @@ import traceback
 from utils import get_db_connection
 import sqlite3
 import os
+import hashlib
+import datetime
+import uuid
 
 # Define the blueprints for geojson
 geojson_management = Blueprint('geojson_management', __name__)
@@ -77,12 +80,33 @@ def upload_geojson():
 
         # Calculate size of GeoJSON data
         try:
-            size = len(json.dumps(geojson_data))
+            geojson_str = json.dumps(geojson_data)
+            size = len(geojson_str)
         except Exception as e:
             return jsonify({
                 "success": False,
                 "message": f"Error calculating size: {str(e)}"
             }), 400
+            
+        # Generate a unique hash for the file
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        random_id = str(uuid.uuid4())[:8]
+        file_hash = hashlib.md5(f"{name}_{vendor_name}_{timestamp}_{random_id}".encode()).hexdigest()
+        
+        # Create the data directory if it doesn't exist
+        data_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # Save the GeoJSON file to disk
+        file_path = os.path.join(data_dir, f"{file_hash}.json")
+        try:
+            with open(file_path, 'w') as f:
+                f.write(geojson_str)
+        except Exception as e:
+            return jsonify({
+                "success": False,
+                "message": f"Error saving file to disk: {str(e)}"
+            }), 500
 
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -97,9 +121,9 @@ def upload_geojson():
                 }), 409
 
             cursor.execute('''
-                INSERT INTO geojson_data (name, size, vendor_name, geojson_data)
-                VALUES (?, ?, ?, ?)
-            ''', (name, size, vendor_name, json.dumps(geojson_data)))
+                INSERT INTO geojson_data (name, size, vendor_name, geojson_data, file_hash, file_path)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (name, size, vendor_name, json.dumps(geojson_data), file_hash, file_path))
             
             conn.commit()
             return jsonify({
@@ -124,7 +148,7 @@ def upload_geojson():
         }), 500
 
 # Fetch GeoJSON file by ID
-@geojson_management.route('/fetch/<int:geojson_id>', methods=['GET'])
+@geojson_bp.route('/fetch/<int:geojson_id>', methods=['GET', 'OPTIONS'])
 def fetch_geojson(geojson_id):
     if geojson_id <= 0:
         return jsonify({
@@ -137,7 +161,7 @@ def fetch_geojson(geojson_id):
 
     try:
         cursor.execute('''
-            SELECT id, name, size, vendor_name, date_added, geojson_data
+            SELECT id, name, size, vendor_name, date_added, geojson_data, file_hash, file_path
             FROM geojson_data
             WHERE id = ?
         ''', (geojson_id,))
@@ -166,7 +190,9 @@ def fetch_geojson(geojson_id):
                 "size": result['size'],
                 "vendor_name": result['vendor_name'],
                 "date_added": result['date_added'],
-                "geojson_data": geojson_data
+                "geojson_data": geojson_data,
+                "file_hash": result['file_hash'] if 'file_hash' in result.keys() else None,
+                "file_path": result['file_path'] if 'file_path' in result.keys() else None
             }
         }), 200
 
@@ -197,7 +223,8 @@ def list_geojson():
                 vendor_name,
                 date_added,
                 geojson_data,
-                is_merged
+                file_hash,
+                file_path
             FROM geojson_data
             ORDER BY date_added DESC
         ''')
@@ -214,7 +241,8 @@ def list_geojson():
                 'vendor_name': row['vendor_name'],
                 'date_added': row['date_added'],
                 'geojson_data': json.loads(row['geojson_data']),
-                'is_merged': row['is_merged']
+                'file_hash': row['file_hash'] if 'file_hash' in row.keys() else None,
+                'file_path': row['file_path'] if 'file_path' in row.keys() else None
             })
 
         return jsonify({
@@ -303,9 +331,9 @@ def create_geojson():
                 }), 409
 
             cursor.execute('''
-                INSERT INTO geojson_data (name, size, vendor_name, geojson_data)
-                VALUES (?, ?, ?, ?)
-            ''', (name, size, vendor_name, json.dumps(geojson_data)))
+                INSERT INTO geojson_data (name, size, vendor_name, geojson_data, file_hash, file_path)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (name, size, vendor_name, json.dumps(geojson_data), file_hash, file_path))
             
             conn.commit()
             return jsonify({
@@ -440,7 +468,7 @@ def update_geojson(geojson_id):
         }), 500
 
 # Delete GeoJSON file
-@geojson_management.route('/delete/<int:geojson_id>', methods=['DELETE'])
+@geojson_bp.route('/delete/<int:geojson_id>', methods=['DELETE', 'OPTIONS'])
 def delete_geojson(geojson_id):
     if geojson_id <= 0:
         return jsonify({
@@ -452,14 +480,29 @@ def delete_geojson(geojson_id):
     cursor = conn.cursor()
 
     try:
-        # Check if record exists before deletion
-        cursor.execute('SELECT COUNT(*) FROM geojson_data WHERE id = ?', (geojson_id,))
-        if cursor.fetchone()[0] == 0:
+        # Check if record exists and get file path before deletion
+        cursor.execute('SELECT file_path FROM geojson_data WHERE id = ?', (geojson_id,))
+        result = cursor.fetchone()
+        
+        if not result:
             return jsonify({
                 "success": False,
                 "message": "GeoJSON not found"
             }), 404
-
+            
+        # Delete the file from disk if it exists
+        file_path = result['file_path'] if result and 'file_path' in result.keys() else None
+        if file_path and os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+                logger.info(f"Deleted file from disk: {file_path}")
+            except Exception as e:
+                logger.error(f"Error deleting file from disk: {str(e)}")
+                
+        # Delete any analysis results for this GeoJSON
+        cursor.execute('DELETE FROM analysis_results WHERE geojson_id = ?', (geojson_id,))
+        
+        # Delete the GeoJSON record from the database
         cursor.execute('DELETE FROM geojson_data WHERE id = ?', (geojson_id,))
         conn.commit()
         

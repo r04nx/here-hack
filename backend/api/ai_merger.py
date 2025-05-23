@@ -7,12 +7,14 @@ import json
 import logging
 import os
 import time
+import sqlite3
 from typing import Dict, List, Any, Optional
 
 from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 
 from road_merger_agent.agent import process_road_data
+from utils import get_db_connection
 
 # Configure logging
 logging.basicConfig(
@@ -31,6 +33,12 @@ def analyze_geojson():
     
     Request body:
     {
+        "geojson_id": 123  # ID of the GeoJSON file to analyze
+    }
+    
+    OR
+    
+    {
         "geojson_data": {...},  # GeoJSON data
         "vendor_name": "..."    # Name of the vendor
     }
@@ -39,6 +47,9 @@ def analyze_geojson():
         JSON response with analysis results.
     """
     try:
+        start_time = time.time()
+        logger.info("Starting GeoJSON analysis")
+        
         # Get request data
         data = request.get_json()
         
@@ -48,9 +59,47 @@ def analyze_geojson():
                 "message": "No data provided"
             }), 400
         
+        geojson_id = data.get('geojson_id')
         geojson_data = data.get('geojson_data')
         vendor_name = data.get('vendor_name')
         
+        # If geojson_id is provided, fetch the data from the database
+        if geojson_id:
+            logger.info(f"Fetching GeoJSON data for ID: {geojson_id}")
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute('SELECT * FROM geojson_data WHERE id = ?', (geojson_id,))
+                row = cursor.fetchone()
+                
+                if not row:
+                    return jsonify({
+                        "success": False,
+                        "message": f"GeoJSON with ID {geojson_id} not found"
+                    }), 404
+                
+                # Check if we have a file path to load from
+                if row['file_path'] and os.path.exists(row['file_path']):
+                    logger.info(f"Loading GeoJSON from file: {row['file_path']}")
+                    with open(row['file_path'], 'r') as f:
+                        geojson_data = json.load(f)
+                else:
+                    # Fall back to the data stored in the database
+                    logger.info("Loading GeoJSON from database")
+                    geojson_data = json.loads(row['geojson_data'])
+                
+                vendor_name = row['vendor_name']
+                
+            except Exception as e:
+                logger.error(f"Error fetching GeoJSON data: {str(e)}")
+                return jsonify({
+                    "success": False,
+                    "message": f"Error fetching GeoJSON data: {str(e)}"
+                }), 500
+            finally:
+                conn.close()
+        # Validate that we have the required data
         if not geojson_data:
             return jsonify({
                 "success": False,
@@ -58,30 +107,58 @@ def analyze_geojson():
             }), 400
             
         if not vendor_name:
-            return jsonify({
-                "success": False,
-                "message": "No vendor name provided"
-            }), 400
+            vendor_name = "Unknown Vendor"
+            logger.warning("No vendor name provided, using 'Unknown Vendor'")
         
-        # Process the GeoJSON data using the road merger agent
+        # Process the GeoJSON data
         logger.info(f"Processing GeoJSON data from vendor: {vendor_name}")
-        
-        # Add a small delay to simulate processing time
-        time.sleep(2)
-        
-        # Process the data
         result = process_road_data(geojson_data, vendor_name)
         
-        if result.get("status") == "success":
-            return jsonify({
-                "success": True,
-                "data": result.get("process_results")
-            }), 200
-        else:
-            return jsonify({
-                "success": False,
-                "message": result.get("error_message", "Unknown error")
-            }), 500
+        # If we have a geojson_id, store the analysis results in the database
+        if geojson_id:
+            try:
+                logger.info(f"Storing analysis results for GeoJSON ID: {geojson_id}")
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # Check if we already have analysis results for this GeoJSON
+                cursor.execute('SELECT id FROM analysis_results WHERE geojson_id = ?', (geojson_id,))
+                existing_result = cursor.fetchone()
+                
+                analysis_data = json.dumps(result)
+                confidence_score = result.get('decision', {}).get('confidence_score', 0)
+                recommendation = result.get('decision', {}).get('recommendation', '')
+                reasoning = result.get('decision', {}).get('reasoning', '')
+                
+                if existing_result:
+                    # Update existing analysis results
+                    cursor.execute('''
+                        UPDATE analysis_results 
+                        SET confidence_score = ?, recommendation = ?, reasoning = ?, analysis_data = ?, date_analyzed = CURRENT_TIMESTAMP 
+                        WHERE geojson_id = ?
+                    ''', (confidence_score, recommendation, reasoning, analysis_data, geojson_id))
+                else:
+                    # Insert new analysis results
+                    cursor.execute('''
+                        INSERT INTO analysis_results (geojson_id, confidence_score, recommendation, reasoning, analysis_data)
+                        VALUES (?, ?, ?, ?, ?)
+                    ''', (geojson_id, confidence_score, recommendation, reasoning, analysis_data))
+                
+                conn.commit()
+                logger.info(f"Analysis results stored successfully for GeoJSON ID: {geojson_id}")
+            except Exception as e:
+                logger.error(f"Error storing analysis results: {str(e)}")
+            finally:
+                conn.close()
+        
+        # Return the result
+        processing_time = time.time() - start_time
+        logger.info(f"GeoJSON analysis completed in {processing_time:.2f} seconds")
+        return jsonify({
+            "success": True,
+            "data": result,
+            "processing_time": processing_time
+        })
             
     except Exception as e:
         logger.error(f"Error analyzing GeoJSON: {str(e)}")

@@ -49,11 +49,11 @@ scipy>=1.10.1
 pandas>=2.0.3
 tqdm>=4.65.0
 # New dependencies for the smart road data merger system
-google-api-python-client>=2.97.0
-tensorflow>=2.13.0
-scikit-learn>=1.3.0
-matplotlib>=3.7.2
-folium>=0.14.0
-geopy>=2.3.0
-newsapi-python>=0.2.7
-fake-useragent>=1.1.3
+google-adk
+tensorflow
+sklearn
+matplotlib
+folium
+geopy
+news-api-client
+fake-useragent
