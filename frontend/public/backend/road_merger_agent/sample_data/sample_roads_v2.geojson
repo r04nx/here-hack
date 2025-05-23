@@ -1,0 +1,87 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road1",
+        "name": "Main Street",
+        "type": "primary",
+        "speed_limit": 60,
+        "lanes": 2,
+        "oneway": false
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [72.8775, 19.0759],
+          [72.8779, 19.0764],
+          [72.8784, 19.0769],
+          [72.8789, 19.0774]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road2",
+        "name": "Oak Avenue",
+        "type": "secondary",
+        "speed_limit": 40,
+        "lanes": 2,
+        "oneway": true
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [72.8784, 19.0769],
+          [72.8789, 19.0764],
+          [72.8794, 19.0759]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "road4",
+        "name": "New Boulevard",
+        "type": "tertiary",
+        "speed_limit": 35,
+        "lanes": 1,
+        "oneway": false
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [72.8795, 19.0780],
+          [72.8800, 19.0785],
+          [72.8805, 19.0790]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "intersection1",
+        "type": "intersection",
+        "traffic_signals": true,
+        "pedestrian_crossing": true
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [72.8784, 19.0769]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "id": "traffic_signal2",
+        "highway": "traffic_signals"
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [72.8795, 19.0780]
+      }
+    }
+  ]
+}

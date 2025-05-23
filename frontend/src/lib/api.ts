@@ -29,6 +29,16 @@ export interface MergeHistory {
   region: string;
 }
 
+export interface GeoJSONData {
+  id: number;
+  name: string;
+  size: number;
+  vendor_name: string;
+  date_added: string;
+  geojson_data: any;
+  is_merged?: boolean;
+}
+
 export interface RoadDataAnalysis {
   status: string;
   process_results?: {
@@ -147,4 +157,66 @@ export const roadMergerAPI = {
   }
 };
 
-export default roadMergerAPI;
+// GeoJSON API functions
+export const geoJsonAPI = {
+  // List all GeoJSON files
+  listGeoJSON: async (): Promise<GeoJSONData[]> => {
+    try {
+      const response = await api.get('/api/geojson/list');
+      return response.data.data;
+    } catch (error) {
+      console.error('Error listing GeoJSON files:', error);
+      throw error;
+    }
+  },
+
+  // Fetch a specific GeoJSON file by ID
+  fetchGeoJSON: async (id: number): Promise<GeoJSONData> => {
+    try {
+      const response = await api.get(`/api/geojson/${id}`);
+      return response.data.data;
+    } catch (error) {
+      console.error(`Error fetching GeoJSON with ID ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Create a new GeoJSON file
+  createGeoJSON: async (name: string, vendorName: string, features: any[]): Promise<any> => {
+    try {
+      const response = await api.post('/api/geojson/create', {
+        name,
+        vendor_name: vendorName,
+        features
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error creating GeoJSON:', error);
+      throw error;
+    }
+  },
+
+  // Update an existing GeoJSON file
+  updateGeoJSON: async (id: number, data: { name?: string; vendor_name?: string; geojson_data?: any }): Promise<any> => {
+    try {
+      const response = await api.put(`/api/geojson/${id}`, data);
+      return response.data;
+    } catch (error) {
+      console.error(`Error updating GeoJSON with ID ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // Delete a GeoJSON file
+  deleteGeoJSON: async (id: number): Promise<any> => {
+    try {
+      const response = await api.delete(`/api/geojson/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error deleting GeoJSON with ID ${id}:`, error);
+      throw error;
+    }
+  }
+};
+
+export default { roadMergerAPI, geoJsonAPI };
