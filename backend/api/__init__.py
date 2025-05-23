@@ -1,6 +1,7 @@
 from flask import Blueprint, Flask, jsonify, make_response
 from .geojson import geojson_management, geojson_bp
 from .templates import templates_bp
+from .ai_merger import ai_merger_bp
 
 from flask_cors import CORS
 from itsdangerous import URLSafeTimedSerializer
@@ -31,6 +32,7 @@ def create_app():
     # Register the blueprints
     app.register_blueprint(geojson_bp)
     app.register_blueprint(templates_bp)
+    app.register_blueprint(ai_merger_bp)
 
 
 

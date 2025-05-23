@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { roadMergerAPI, RoadDataAnalysis } from '@/lib/api';
 import { Header } from '@/components/Layout/Header';
 import { MapView } from '@/components/Analyst/MapView';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -106,8 +107,58 @@ const AnalystDashboard = () => {
   const [autoMergeEnabled, setAutoMergeEnabled] = useState<boolean>(false);
   const [processingDemo, setProcessingDemo] = useState<boolean>(false);
   
-  // Function to simulate AI agent process
-  const runAgentAnalysis = () => {
+  // Sample GeoJSON data for testing
+  const sampleGeoJSON = {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "properties": {
+          "id": "road1",
+          "name": "Main Street",
+          "type": "primary",
+          "speed_limit": 50,
+          "lanes": 2,
+          "oneway": false
+        },
+        "geometry": {
+          "type": "LineString",
+          "coordinates": [
+            [72.8776, 19.0760],
+            [72.8780, 19.0765],
+            [72.8785, 19.0770],
+            [72.8790, 19.0775]
+          ]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "id": "intersection1",
+          "type": "intersection",
+          "traffic_signals": true
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [72.8785, 19.0770]
+        }
+      },
+      {
+        "type": "Feature",
+        "properties": {
+          "id": "traffic_signal1",
+          "highway": "traffic_signals"
+        },
+        "geometry": {
+          "type": "Point",
+          "coordinates": [72.8790, 19.0775]
+        }
+      }
+    ]
+  };
+
+  // Function to run AI agent analysis using the backend API
+  const runAgentAnalysis = async () => {
     setAgentAnalysisActive(true);
     setProcessingDemo(true);
     
@@ -119,81 +170,112 @@ const AnalystDashboard = () => {
       finalDecision: { ...agentStates.finalDecision, status: 'pending', progress: 0 }
     });
     
-    // Simulate data extraction agent
-    const extractionInterval = setInterval(() => {
-      setCurrentAgentState(prev => {
-        const newProgress = Math.min(prev.dataExtraction.progress + 10, 100);
-        return {
-          ...prev,
-          dataExtraction: {
-            ...prev.dataExtraction,
-            progress: newProgress,
-            status: newProgress === 100 ? 'completed' : 'in_progress'
-          }
-        };
-      });
-    }, 500);
-    
-    // Simulate external validation agent
-    setTimeout(() => {
-      clearInterval(extractionInterval);
-      const validationInterval = setInterval(() => {
-        setCurrentAgentState(prev => {
-          const newProgress = Math.min(prev.externalValidation.progress + 8, 100);
-          return {
-            ...prev,
-            externalValidation: {
-              ...prev.externalValidation,
-              progress: newProgress,
-              status: newProgress === 100 ? 'completed' : 'in_progress'
-            }
-          };
-        });
-      }, 600);
+    try {
+      // Get the selected vendor name
+      const vendorName = selectedVendor ? vendors.find(v => v.id === selectedVendor)?.name || 'RoadTech Solutions' : 'RoadTech Solutions';
       
-      // Simulate news analysis agent
-      setTimeout(() => {
-        clearInterval(validationInterval);
-        const newsInterval = setInterval(() => {
-          setCurrentAgentState(prev => {
-            const newProgress = Math.min(prev.newsAnalysis.progress + 12, 100);
-            return {
-              ...prev,
-              newsAnalysis: {
-                ...prev.newsAnalysis,
-                progress: newProgress,
-                status: newProgress === 100 ? 'completed' : 'in_progress'
-              }
-            };
-          });
-        }, 400);
+      // Start data extraction phase
+      setCurrentAgentState(prev => ({
+        ...prev,
+        dataExtraction: { ...prev.dataExtraction, status: 'in_progress', progress: 25 }
+      }));
+      
+      // Call the backend API to analyze the GeoJSON data
+      const analysisResult = await roadMergerAPI.analyzeGeoJSON(sampleGeoJSON, vendorName);
+      
+      // Update UI based on the API response
+      if (analysisResult.status === 'success' && analysisResult.process_results) {
+        const { extraction, validation, news_analysis, decision } = analysisResult.process_results;
         
-        // Simulate final decision agent
-        setTimeout(() => {
-          clearInterval(newsInterval);
-          const decisionInterval = setInterval(() => {
-            setCurrentAgentState(prev => {
-              const newProgress = Math.min(prev.finalDecision.progress + 15, 100);
-              return {
-                ...prev,
-                finalDecision: {
-                  ...prev.finalDecision,
-                  progress: newProgress,
-                  status: newProgress === 100 ? 'completed' : 'in_progress'
-                }
-              };
-            });
-          }, 300);
-          
-          // Complete the process
-          setTimeout(() => {
-            clearInterval(decisionInterval);
-            setCurrentAgentState(agentStates);
-            setProcessingDemo(false);
-          }, 2000);
-        }, 5000);
-      }, 6000);
-    }, 5000);
+        // Update data extraction state
+        setCurrentAgentState(prev => ({
+          ...prev,
+          dataExtraction: { 
+            ...prev.dataExtraction, 
+            status: extraction.status === 'success' ? 'completed' : 'error',
+            progress: 100,
+            result: extraction.data ? {
+              roadSegments: extraction.data.road_segments.count,
+              intersections: extraction.data.intersections.count,
+              trafficSignals: extraction.data.traffic_signals.count,
+              region: extraction.data.location_info.region
+            } : undefined
+          }
+        }));
+        
+        // Update all agent states immediately in sequence
+        // Update external validation state
+        setCurrentAgentState(prev => ({
+          ...prev,
+          dataExtraction: { 
+            ...prev.dataExtraction, 
+            status: extraction.status === 'success' ? 'completed' : 'error',
+            progress: 100,
+            result: extraction.data ? {
+              roadSegments: extraction.data.road_segments.count,
+              intersections: extraction.data.intersections.count,
+              trafficSignals: extraction.data.traffic_signals.count,
+              region: extraction.data.location_info.region
+            } : undefined
+          },
+          externalValidation: { 
+            ...prev.externalValidation, 
+            status: validation.status === 'success' ? 'completed' : 'error',
+            progress: 100,
+            result: validation.validation_results ? {
+              googleMapsMatchRate: validation.validation_results.google_maps_match_rate * 100,
+              wazeMatchRate: validation.validation_results.waze_match_rate * 100,
+              osmMatchRate: validation.validation_results.osm_match_rate * 100,
+              overallMatchRate: validation.validation_results.overall_match_rate * 100
+            } : undefined
+          },
+          newsAnalysis: { 
+            ...prev.newsAnalysis, 
+            status: news_analysis.status === 'success' ? 'completed' : 'error',
+            progress: 100,
+            result: news_analysis.news_analysis ? {
+              articlesAnalyzed: news_analysis.news_analysis.articles_analyzed,
+              findings: news_analysis.news_analysis.findings
+            } : undefined
+          },
+          finalDecision: { 
+            ...prev.finalDecision, 
+            status: 'completed',
+            progress: 100,
+            result: {
+              vendorName: decision.vendor_name,
+              trustScore: decision.vendor_trust_score,
+              confidenceScore: decision.confidence_score,
+              recommendation: decision.recommendation,
+              reasoning: decision.reasoning
+            }
+          }
+        }));
+        
+        setProcessingDemo(false);
+      } else {
+        // Handle error
+        setCurrentAgentState(prev => ({
+          ...prev,
+          dataExtraction: { ...prev.dataExtraction, status: 'error', progress: 100 },
+          externalValidation: { ...prev.externalValidation, status: 'error', progress: 0 },
+          newsAnalysis: { ...prev.newsAnalysis, status: 'error', progress: 0 },
+          finalDecision: { ...prev.finalDecision, status: 'error', progress: 0 }
+        }));
+        setProcessingDemo(false);
+      }
+    } catch (error) {
+      console.error('Error running agent analysis:', error);
+      // Handle error
+      setCurrentAgentState(prev => ({
+        ...prev,
+        dataExtraction: { ...prev.dataExtraction, status: 'error', progress: 100 },
+        externalValidation: { ...prev.externalValidation, status: 'error', progress: 0 },
+        newsAnalysis: { ...prev.newsAnalysis, status: 'error', progress: 0 },
+        finalDecision: { ...prev.finalDecision, status: 'error', progress: 0 }
+      }));
+      setProcessingDemo(false);
+    }
   };
   
   // Function to handle auto-merge toggle

@@ -5,8 +5,9 @@ from utils import get_db_connection
 import sqlite3
 import os
 
-# Define the blueprint for geojson
+# Define the blueprints for geojson
 geojson_management = Blueprint('geojson_management', __name__)
+geojson_bp = Blueprint('geojson', __name__, url_prefix='/api/geojson')
 
 def validate_geojson_structure(geojson_data):
     """Validate the structure of GeoJSON data"""
@@ -475,4 +476,11 @@ def delete_geojson(geojson_id):
         }), 500
     finally:
         conn.close()
-        
+
+# Register routes with the geojson_bp Blueprint
+geojson_bp.route('/upload', methods=['POST'])(upload_geojson)
+geojson_bp.route('/<int:geojson_id>', methods=['GET'])(fetch_geojson)
+geojson_bp.route('/list', methods=['GET'])(list_geojson)
+geojson_bp.route('/create', methods=['POST'])(create_geojson)
+geojson_bp.route('/<int:geojson_id>', methods=['PUT'])(update_geojson)
+geojson_bp.route('/<int:geojson_id>', methods=['DELETE'])(delete_geojson)

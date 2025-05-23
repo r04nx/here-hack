@@ -49,3 +49,12 @@ shapely
 scipy
 pandas
 tqdm
+# New dependencies for the smart road data merger system
+google-adk
+tensorflow
+sklearn
+matplotlib
+folium
+geopy
+news-api-client
+fake-useragent
