@@ -348,6 +348,189 @@ def save_geojson():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@templates_bp.route('/api/merge', methods=['POST'])
+def merge_geojson_api():
+    try:
+        # Get request data
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "success": False,
+                "message": "No data provided"
+            }), 400
+        
+        original_file = data.get('original_file')
+        uploaded_file = data.get('uploaded_file')
+        
+        if not original_file or not uploaded_file:
+            return jsonify({
+                "success": False,
+                "message": "Both original and uploaded files are required"
+            }), 400
+        
+        # Create temporary files
+        original_path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}.json")
+        uploaded_path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}.json")
+        merged_path = os.path.join(UPLOAD_FOLDER, f"{uuid.uuid4()}.json")
+        
+        # Write data to temporary files
+        with open(original_path, 'w') as f:
+            json.dump(original_file, f)
+        
+        with open(uploaded_path, 'w') as f:
+            json.dump(uploaded_file, f)
+        
+        # Merge the files
+        road_merger.merge_roads(original_path, uploaded_path, merged_path)
+        
+        # Read the merged file
+        with open(merged_path, 'r') as f:
+            merged_data = json.load(f)
+        
+        # Clean up temporary files
+        os.remove(original_path)
+        os.remove(uploaded_path)
+        os.remove(merged_path)
+        
+        return jsonify({
+            "success": True,
+            "data": merged_data
+        }), 200
+    
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Error merging GeoJSON: {str(e)}"
+        }), 500
+
+@templates_bp.route('/api/approve_merge', methods=['POST'])
+def approve_and_merge_geojson():
+    try:
+        # Get request data
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                "success": False,
+                "message": "No data provided"
+            }), 400
+        
+        geojson_id = data.get('geojson_id')
+        approved = data.get('approved', True)
+        
+        if not geojson_id:
+            return jsonify({
+                "success": False,
+                "message": "GeoJSON ID is required"
+            }), 400
+        
+        # If not approved, just update the status in the database
+        if not approved:
+            # Connect to the database
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Update the status in the database
+            cursor.execute(
+                "UPDATE geojson_files SET status = ? WHERE id = ?",
+                ("rejected", geojson_id)
+            )
+            
+            # Commit changes and close connection
+            conn.commit()
+            conn.close()
+            
+            return jsonify({
+                "success": True,
+                "message": "GeoJSON file marked as rejected"
+            }), 200
+        
+        # If approved, merge with the main map data
+        # 1. Get the GeoJSON file from the database
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT file_path FROM geojson_files WHERE id = ?",
+            (geojson_id,)
+        )
+        
+        result = cursor.fetchone()
+        
+        if not result:
+            conn.close()
+            return jsonify({
+                "success": False,
+                "message": f"GeoJSON file with ID {geojson_id} not found"
+            }), 404
+        
+        file_path = result[0]
+        
+        # 2. Load the GeoJSON file
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                uploaded_geojson = json.load(f)
+        except Exception as e:
+            conn.close()
+            return jsonify({
+                "success": False,
+                "message": f"Error loading GeoJSON file: {str(e)}"
+            }), 500
+        
+        # 3. Load the main map data
+        main_geojson = load_geojson()
+        
+        # 4. Create temporary files for merging
+        main_path = os.path.join(UPLOAD_FOLDER, f"main_{uuid.uuid4()}.json")
+        uploaded_path = os.path.join(UPLOAD_FOLDER, f"uploaded_{uuid.uuid4()}.json")
+        merged_path = os.path.join(UPLOAD_FOLDER, f"merged_{uuid.uuid4()}.json")
+        
+        # 5. Write data to temporary files
+        with open(main_path, 'w') as f:
+            json.dump(main_geojson, f)
+        
+        with open(uploaded_path, 'w') as f:
+            json.dump(uploaded_geojson, f)
+        
+        # 6. Merge the files
+        road_merger.merge_roads(main_path, uploaded_path, merged_path)
+        
+        # 7. Read the merged file
+        with open(merged_path, 'r') as f:
+            merged_data = json.load(f)
+        
+        # 8. Save the merged data to the main GeoJSON file
+        geojson_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), GEOJSON_PATH)
+        with open(geojson_path, 'w') as f:
+            json.dump(merged_data, f)
+        
+        # 9. Update the status in the database
+        cursor.execute(
+            "UPDATE geojson_files SET status = ? WHERE id = ?",
+            ("approved", geojson_id)
+        )
+        
+        # 10. Commit changes and close connection
+        conn.commit()
+        conn.close()
+        
+        # 11. Clean up temporary files
+        os.remove(main_path)
+        os.remove(uploaded_path)
+        os.remove(merged_path)
+        
+        return jsonify({
+            "success": True,
+            "message": "GeoJSON file approved and merged with the main map data"
+        }), 200
+    
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Error approving and merging GeoJSON: {str(e)}"
+        }), 500
+
 @templates_bp.route('/api/merge-geojson', methods=['POST'])
 def merge_geojson():
     try:

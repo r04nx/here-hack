@@ -109,6 +109,55 @@ export const roadMergerAPI = {
     }
   },
 
+  // Analyze a GeoJSON file by ID
+  analyzeGeoJSONById: async (geojsonId: number): Promise<RoadDataAnalysis> => {
+    try {
+      const response = await api.post('/api/ai_merger/analyze', {
+        geojson_id: geojsonId
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error analyzing GeoJSON by ID:', error);
+      throw error;
+    }
+  },
+  
+  // Get list of uploaded GeoJSON files
+  getUploadedGeoJSONFiles: async () => {
+    try {
+      const response = await api.get('/api/geojson/list');
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching GeoJSON files:', error);
+      throw error;
+    }
+  },
+  
+  // Get a specific GeoJSON file by ID
+  getGeoJSONById: async (id: number) => {
+    try {
+      const response = await api.get(`/api/geojson/fetch/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error(`Error fetching GeoJSON with ID ${id}:`, error);
+      throw error;
+    }
+  },
+  
+  // Approve a GeoJSON file for merging
+  approveGeoJSON: async (id: number, notes: string = '') => {
+    try {
+      const response = await api.post('/api/ai_merger/approve', {
+        geojson_id: id,
+        notes: notes
+      });
+      return response.data;
+    } catch (error) {
+      console.error(`Error approving GeoJSON with ID ${id}:`, error);
+      throw error;
+    }
+  },
+
   // Get vendor trust scores
   getVendorTrustScores: async (): Promise<VendorTrustScore[]> => {
     try {

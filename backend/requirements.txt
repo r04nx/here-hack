@@ -52,7 +52,7 @@ tqdm
 # New dependencies for the smart road data merger system
 google-adk
 tensorflow
-sklearn
+scikit-learn
 matplotlib
 folium
 geopy
