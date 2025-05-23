@@ -1,11 +1,10 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Filter, Check, X, Info } from 'lucide-react';
+import { MapPin, Filter, Check, X, Info, Maximize2 } from 'lucide-react';
 
 interface Change {
   id: string;
@@ -37,6 +36,7 @@ const mockChanges: Change[] = [
 
 export const MapView: React.FC = () => {
   const mapRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [changes, setChanges] = useState<Change[]>(mockChanges);
   const [selectedChange, setSelectedChange] = useState<Change | null>(null);
   const [filters, setFilters] = useState({
@@ -75,155 +75,44 @@ export const MapView: React.FC = () => {
     }
   };
 
+  const toggleFullScreen = () => {
+    if (iframeRef.current) {
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        iframeRef.current.requestFullscreen();
+      }
+    }
+  };
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
-      {/* Controls Panel */}
-      <div className="lg:col-span-1 space-y-4">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Filter className="w-5 h-5 text-blue-500" />
-              <span>Filters</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">Street</label>
-              <Input
-                placeholder="Enter street name"
-                value={filters.street}
-                onChange={(e) => setFilters(prev => ({ ...prev, street: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Location</label>
-              <Input
-                placeholder="Enter location"
-                value={filters.location}
-                onChange={(e) => setFilters(prev => ({ ...prev, location: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label className="text-sm font-medium">Area</label>
-              <Select value={filters.area} onValueChange={(value) => setFilters(prev => ({ ...prev, area: value }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select area" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="downtown">Downtown</SelectItem>
-                  <SelectItem value="suburbs">Suburbs</SelectItem>
-                  <SelectItem value="highway">Highway</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Pending Changes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {changes.filter(change => change.status === 'pending').map((change) => (
-                <div
-                  key={change.id}
-                  className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50"
-                  onClick={() => setSelectedChange(change)}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <Badge className={getChangeColor(change.type)}>
-                        {change.type.replace('_', ' ')}
-                      </Badge>
-                      <p className="text-sm mt-2">{change.description}</p>
-                    </div>
-                    <MapPin className="w-4 h-4 text-gray-400" />
-                  </div>
-                  <div className="flex space-x-2 mt-3">
-                    <Button
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleApproveChange(change.id);
-                      }}
-                    >
-                      <Check className="w-3 h-3 mr-1" />
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRejectChange(change.id);
-                      }}
-                    >
-                      <X className="w-3 h-3 mr-1" />
-                      Reject
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Map Panel */}
-      <div className="lg:col-span-2">
-        <Card className="h-full">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <MapPin className="w-5 h-5 text-orange-500" />
-              <span>Map View</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="h-96 lg:h-full">
-            <div
-              ref={mapRef}
-              className="w-full h-full bg-gradient-to-br from-green-100 to-blue-100 rounded-lg flex items-center justify-center relative"
-            >
-              <div className="text-center">
-                <MapPin className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-600">Interactive Map View</p>
-                <p className="text-sm text-gray-500">
-                  HERE Maps & Leaflet.js integration will be implemented here
-                </p>
-              </div>
-
-              {/* Mock change markers */}
-              <div className="absolute top-1/3 left-1/3 w-4 h-4 bg-orange-500 rounded-full border-2 border-white cursor-pointer hover:scale-110 transition-transform"></div>
-              <div className="absolute top-1/2 right-1/3 w-4 h-4 bg-blue-500 rounded-full border-2 border-white cursor-pointer hover:scale-110 transition-transform"></div>
-            </div>
-
-            {selectedChange && (
-              <div className="absolute bottom-4 left-4 bg-white p-4 rounded-lg shadow-lg border max-w-sm">
-                <div className="flex items-start space-x-3">
-                  <Info className="w-5 h-5 text-blue-500 mt-0.5" />
-                  <div>
-                    <Badge className={getChangeColor(selectedChange.type)}>
-                      {selectedChange.type.replace('_', ' ')}
-                    </Badge>
-                    <p className="text-sm mt-2">{selectedChange.description}</p>
-                    <div className="flex space-x-2 mt-3">
-                      <Button size="sm" className="bg-green-600 hover:bg-green-700">
-                        <Check className="w-3 h-3 mr-1" />
-                        Approve
-                      </Button>
-                      <Button size="sm" variant="destructive">
-                        <X className="w-3 h-3 mr-1" />
-                        Reject
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+    <div style={{ position: 'relative', height: '100vh' }}>
+      <iframe
+        ref={iframeRef}
+        src="http://127.0.0.1:5000/analyst"
+        style={{ width: '100%', height: '100%', border: 'none' }}
+        title="Analyst Map View"
+      />
+      <button
+        onClick={toggleFullScreen}
+        style={{
+          position: 'absolute',
+          top: '10px',
+          right: '10px',
+          padding: '5px 10px',
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          color: 'white',
+          border: 'none',
+          borderRadius: '5px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10,
+        }}
+      >
+        <Maximize2 size={16} />
+      </button>
     </div>
   );
 };
