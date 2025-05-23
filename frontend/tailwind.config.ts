@@ -10,6 +10,11 @@ export default {
 	],
 	prefix: "",
 	theme: {
+		fontFamily: {
+			sans: ['Arial', 'sans-serif'],
+			serif: ['Arial', 'serif'],
+			mono: ['Arial Monospaced', 'monospace']
+		},
 		container: {
 			center: true,
 			padding: '2rem',
