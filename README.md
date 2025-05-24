@@ -175,11 +175,11 @@ flowchart TD
     
     MAIS --> API
     
-    classDef interfaces fill:#f9f,stroke:#333,stroke-width:2px
-    classDef api fill:#bbf,stroke:#333,stroke-width:2px
-    classDef agents fill:#bfb,stroke:#333,stroke-width:2px
-    classDef external fill:#fbb,stroke:#333,stroke-width:2px
-    classDef storage fill:#bff,stroke:#333,stroke-width:2px
+    classDef interfaces fill:#f9f,stroke:#333,stroke-width:2px,color:#000
+    classDef api fill:#bbf,stroke:#333,stroke-width:2px,color:#000
+    classDef agents fill:#bfb,stroke:#333,stroke-width:2px,color:#000
+    classDef external fill:#fbb,stroke:#333,stroke-width:2px,color:#000
+    classDef storage fill:#bff,stroke:#333,stroke-width:2px,color:#000
     
     class VP,AP,MA interfaces
     class API api
@@ -237,9 +237,9 @@ flowchart LR
     
     OUT[Decision Output] --> |Approve/Reject| DB[(Database)]
     
-    classDef agent fill:#bfb,stroke:#333,stroke-width:2px
-    classDef subProcess fill:#dfd,stroke:#333,stroke-width:1px
-    classDef data fill:#bbf,stroke:#333,stroke-width:1px
+    classDef agent fill:#bfb,stroke:#333,stroke-width:2px,color:#000
+    classDef subProcess fill:#dfd,stroke:#333,stroke-width:1px,color:#000
+    classDef data fill:#bbf,stroke:#333,stroke-width:1px,color:#000
     
     class DEA,EVA,NAA,DMA agent
     class DEA1,DEA2,DEA3,DEA4,DEA5,DEA6,EVA1,EVA2,EVA3,EVA4,EVA5,EVA6,NAA1,NAA2,NAA3,NAA4,NAA5,DMA1,DMA2,DMA3,DMA4,DMA5 subProcess
@@ -275,9 +275,9 @@ flowchart TD
         TSC[Trust Score Calculation] --> TS
     end
     
-    classDef process fill:#bfb,stroke:#333,stroke-width:2px
-    classDef data fill:#bbf,stroke:#333,stroke-width:1px
-    classDef feedback fill:#fbb,stroke:#333,stroke-width:1px
+    classDef process fill:#bfb,stroke:#333,stroke-width:2px,color:#000
+    classDef data fill:#bbf,stroke:#333,stroke-width:1px,color:#000
+    classDef feedback fill:#fbb,stroke:#333,stroke-width:1px,color:#000
     
     class VU,MD data
     class QA,TS,AT,FD,TSC process
@@ -354,11 +354,11 @@ flowchart TD
     DMA --- DMA1
     
     %% Styling
-    classDef process fill:#bbf,stroke:#333,stroke-width:1px
-    classDef decision fill:#fbb,stroke:#333,stroke-width:1px
-    classDef agent fill:#bfb,stroke:#333,stroke-width:2px
-    classDef storage fill:#bff,stroke:#333,stroke-width:1px
-    classDef start fill:#f9f,stroke:#333,stroke-width:2px
+    classDef process fill:#bbf,stroke:#333,stroke-width:1px,color:#000
+    classDef decision fill:#fbb,stroke:#333,stroke-width:1px,color:#000
+    classDef agent fill:#bfb,stroke:#333,stroke-width:2px,color:#000
+    classDef storage fill:#bff,stroke:#333,stroke-width:1px,color:#000
+    classDef start fill:#f9f,stroke:#333,stroke-width:2px,color:#000
     
     class Start start
     class VU,RE,AR,MI,PD,UF,QV,TS,RL,IM process
