@@ -1,7 +1,7 @@
 from flask import Blueprint, Flask, jsonify, make_response
-from .geojson import geojson_management, geojson_bp
+from .geojson import geojson_management
 from .templates import templates_bp
-from .ai_merger import ai_merger_bp
+from .merge_operations import merge_operations_bp
 import os
 
 from flask_cors import CORS
@@ -32,9 +32,9 @@ def create_app():
         return response
 
     # Register the blueprints
-    app.register_blueprint(geojson_bp)
+    app.register_blueprint(geojson_management, url_prefix='/geojson')
     app.register_blueprint(templates_bp)
-    app.register_blueprint(ai_merger_bp)
+    app.register_blueprint(merge_operations_bp, url_prefix='/merge-operations')
 
     return app
 

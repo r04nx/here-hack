@@ -17,10 +17,7 @@ s = URLSafeTimedSerializer(SECRET_KEY)
 def index():
 	return render_template('index.html')
 
-@app.route('/analyst')
-def analyst():
-	return render_template('analyst.html')
 
 app = create_app()
 if __name__ == '__main__':
-	app.run(debug=False)
+	app.run(debug=True)

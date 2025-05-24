@@ -9,6 +9,9 @@ import logging
 from datetime import datetime
 import pandas as pd
 from tqdm import tqdm
+import time
+import os
+import uuid
 
 logging.basicConfig(
     level=logging.INFO,
@@ -38,7 +41,9 @@ class RoadMerger:
             'total_roads_file2': 0,
             'matched_roads': 0,
             'unmatched_roads_file1': 0,
-            'unmatched_roads_file2': 0
+            'unmatched_roads_file2': 0,
+            'merge_duration_ms': 0,
+            'output_file_id': str(uuid.uuid4())
         }
         
     def load_geojson(self, file_path: str) -> gpd.GeoDataFrame:
@@ -106,10 +111,12 @@ class RoadMerger:
         logger.info(f"Unmatched roads from file 1: {self.stats['unmatched_roads_file1']}")
         logger.info(f"Unmatched roads from file 2: {self.stats['unmatched_roads_file2']}")
         logger.info(f"Match rate: {(self.stats['matched_roads'] / max(self.stats['total_roads_file1'], self.stats['total_roads_file2'])) * 100:.2f}%")
+        logger.info(f"Merge duration: {self.stats['merge_duration_ms']}ms")
     
     def merge_roads(self, file1_path: str, file2_path: str, output_path: str):
         """Merge two GeoJSON files containing road data."""
         logger.info("Starting road merging process...")
+        start_time = time.time()
         
         # Load the GeoJSON files
         gdf1 = self.load_geojson(file1_path)
@@ -209,6 +216,10 @@ class RoadMerger:
                     }
                 })
         
+        # Calculate merge duration
+        end_time = time.time()
+        self.stats['merge_duration_ms'] = int((end_time - start_time) * 1000)
+        
         # Print statistics
         self.print_stats()
         
@@ -225,6 +236,23 @@ class RoadMerger:
             json.dump(final_geojson, f, indent=2, cls=GeoJSONEncoder)
         
         logger.info("Road merging process completed successfully!")
+        
+        # Return merge statistics for database storage
+        return {
+            'file1_name': os.path.basename(file1_path),
+            'file2_name': os.path.basename(file2_path),
+            'similarity_threshold': self.similarity_threshold,
+            'output_file_id': self.stats['output_file_id'],
+            'total_roads_file1': self.stats['total_roads_file1'],
+            'total_roads_file2': self.stats['total_roads_file2'],
+            'total_roads_merged': len(merged_features),
+            'roads_merged': self.stats['matched_roads'],
+            'roads_skipped': self.stats['unmatched_roads_file1'],
+            'roads_added': self.stats['unmatched_roads_file2'],
+            'merge_duration_ms': self.stats['merge_duration_ms'],
+            'status': 'completed',
+            'error_message': None
+        }
 
 if __name__ == "__main__":
     # Example usage

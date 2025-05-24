@@ -5,9 +5,7 @@ import jwt
 import sqlite3
 
 def get_db_connection():
-    import os
-    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance', 'database.db')
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect('database.db')
     conn.row_factory = sqlite3.Row
     return conn
 

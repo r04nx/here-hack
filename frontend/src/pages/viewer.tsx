@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { roadMergerAPI, MergeHistory, VendorTrustScore } from '@/lib/api';
 import { Header } from '@/components/Layout/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -89,85 +88,6 @@ const ViewerDashboard = () => {
   const [selectedMerge, setSelectedMerge] = useState<number | null>(null);
   const [aiProcessLog, setAiProcessLog] = useState<string[]>([]);
   const [showingProcessDetails, setShowingProcessDetails] = useState(false);
-  const [mergeHistory, setMergeHistory] = useState<MergeHistory[]>([]);
-  const [vendorTrustScores, setVendorTrustScores] = useState<VendorTrustScore[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  
-  // Fetch data from backend API
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Fetch merge history
-        const historyData = await roadMergerAPI.getMergeHistory();
-        setMergeHistory(historyData);
-        
-        // Fetch vendor trust scores
-        const trustScoreData = await roadMergerAPI.getVendorTrustScores();
-        setVendorTrustScores(trustScoreData);
-        
-        setLoading(false);
-      } catch (err) {
-        console.error('Error fetching data:', err);
-        setError('Failed to load data. Please try again later.');
-        setLoading(false);
-        
-        // Use mock data if API fails
-        setMergeHistory([
-          {
-            id: '1',
-            vendor_name: 'RoadTech Solutions',
-            timestamp: '2025-05-23T14:30:00Z',
-            status: 'approved',
-            confidence_score: 87,
-            region: 'Mumbai'
-          },
-          {
-            id: '2',
-            vendor_name: 'MapData Inc.',
-            timestamp: '2025-05-22T10:15:00Z',
-            status: 'reviewed',
-            confidence_score: 72,
-            region: 'Delhi'
-          },
-          {
-            id: '3',
-            vendor_name: 'GeoSpatial Experts',
-            timestamp: '2025-05-21T16:45:00Z',
-            status: 'rejected',
-            confidence_score: 45,
-            region: 'Bangalore'
-          }
-        ]);
-        
-        setVendorTrustScores([
-          {
-            vendor_name: 'RoadTech Solutions',
-            trust_score: 92,
-            trend: 'up',
-            last_updated: '2025-05-23T14:30:00Z'
-          },
-          {
-            vendor_name: 'MapData Inc.',
-            trust_score: 78,
-            trend: 'stable',
-            last_updated: '2025-05-22T10:15:00Z'
-          },
-          {
-            vendor_name: 'GeoSpatial Experts',
-            trust_score: 65,
-            trend: 'down',
-            last_updated: '2025-05-21T16:45:00Z'
-          }
-        ]);
-      }
-    };
-    
-    fetchData();
-  }, []);
   
   // Function to show AI process details with animated typing effect
   const showProcessDetails = (mergeId: number) => {

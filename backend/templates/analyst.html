@@ -24,7 +24,7 @@
         /* Floating panels */
         .overlay-panel {
             position: absolute;
-            top: 10px;
+            top: 100px;
             left: 10px;
             z-index: 1000;
             background: rgba(40, 40, 40, 0.8);
@@ -81,6 +81,26 @@
             margin-top: 5px;
             font-size: 12px;
             word-break: break-all;
+        }
+        .file-select {
+            width: 100%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            background-color: white;
+            color: #333;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .file-select:focus {
+            outline: none;
+            border-color: #2196F3;
+            box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+        }
+        .file-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
         }
         .comparison-options {
             margin-top: 15px;
@@ -626,11 +646,21 @@
     <div class="overlay-panel" id="overlay-panel">
         <h3>Smart Road Data Merger</h3>
         <div class="upload-section">
-            <p>Upload a GeoJSON file to detect road mismatches</p>
+            <p>Select two GeoJSON files to compare</p>
             <div class="file-input-container">
-                <label class="file-input-label" for="geojson-upload">Choose File</label>
-                <input type="file" id="geojson-upload" class="file-input" accept=".geojson,.json">
-                <div class="file-name" id="file-name">No file selected</div>
+                <label>Base File:</label>
+                <select id="base-file-select" class="file-select">
+                    <option value="">Select base file...</option>
+                </select>
+                <div class="file-info" id="base-file-info"></div>
+            </div>
+            
+            <div class="file-input-container" style="margin-top: 15px;">
+                <label>Compare File:</label>
+                <select id="compare-file-select" class="file-select">
+                    <option value="">Select file to compare...</option>
+                </select>
+                <div class="file-info" id="compare-file-info"></div>
             </div>
             
             <div class="overlay-options">
@@ -670,10 +700,6 @@
                     <span>Modified</span>
                 </div>
             </div>
-            <div class="action-buttons">
-                <button id="approve-all-button" class="action-button approve-all">Approve All Changes</button>
-                <button id="preview-merge-button" class="action-button preview-merge" style="background-color: #2196F3; margin-top: 10px;">Preview Merge</button>
-            </div>
         </div>
     </div>
     
@@ -700,7 +726,8 @@
         
         <div style="margin-top: 15px;">
             <a href="/" style="color: #2196F3; text-decoration: none; margin-right: 15px;">Back to Normal View</a>
-            <a href="/edit" style="color: #4CAF50; text-decoration: none;">Open Editor</a>
+            <a href="/edit" style="color: #4CAF50; text-decoration: none; margin-right: 15px;">Open Editor</a>
+            <a href="/merge" style="color: #FF9800; text-decoration: none;">Merge Files</a>
         </div>
     </div>
     
@@ -811,8 +838,6 @@
     </script>
     
     <script>
-        // Wait for the DOM to be fully loaded before executing JavaScript
-        document.addEventListener('DOMContentLoaded', function() {
         // Initialize the map centered on Mumbai
         const map = L.map('map').setView([19.0760, 72.8777], 12);
         
@@ -1215,117 +1240,216 @@
         let approvedChanges = [];
         let rejectedChanges = [];
         let overlayColor = '#3388ff'; // Default overlay color
-        
-        // File upload event listener
-        document.getElementById('geojson-upload').addEventListener('change', function(e) {
-            const fileName = e.target.files[0] ? e.target.files[0].name : 'No file selected';
-            document.getElementById('file-name').textContent = fileName;
+        let fetchedGeoJSONFiles = new Map(); // Store fetched GeoJSON files
+
+        // Function to store data in sessionStorage
+        function storeGeoJSONData(data) {
+            try {
+                sessionStorage.setItem('geojsonFiles', JSON.stringify(data));
+                console.log('Stored GeoJSON data in sessionStorage');
+            } catch (error) {
+                console.error('Error storing data in sessionStorage:', error);
+            }
+        }
+
+        // Function to retrieve data from sessionStorage
+        function getStoredGeoJSONData() {
+            try {
+                const data = sessionStorage.getItem('geojsonFiles');
+                return data ? JSON.parse(data) : null;
+            } catch (error) {
+                console.error('Error retrieving data from sessionStorage:', error);
+                return null;
+            }
+        }
+
+        // Fetch available GeoJSON files on page load
+        function fetchAvailableFiles() {
+            // First check if we have data in sessionStorage
+            const storedData = getStoredGeoJSONData();
+            if (storedData) {
+                console.log('Using stored GeoJSON data');
+                populateFileList(storedData);
+                return;
+            }
+
+            fetch('/geojson/list', {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(async response => {
+                const text = await response.text();
+                try {
+                    const data = JSON.parse(text);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return data;
+                } catch (e) {
+                    console.error('Failed to parse response as JSON:', e);
+                    throw new Error(`Invalid JSON response: ${text.substring(0, 100)}...`);
+                }
+            })
+            .then(data => {
+                if (data.success) {
+                    // Store the data in sessionStorage
+                    storeGeoJSONData(data);
+                    populateFileList(data);
+                } else {
+                    throw new Error(data.message || 'Unknown error occurred');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching GeoJSON:', error);
+                const baseSelect = document.getElementById('base-file-select');
+                const compareSelect = document.getElementById('compare-file-select');
+                baseSelect.innerHTML = '<option value="">Error loading files</option>';
+                compareSelect.innerHTML = '<option value="">Error loading files</option>';
+                document.getElementById('base-file-info').innerHTML = `
+                    <div style="color: red;">
+                        Failed to load files: ${error.message}
+                        <br>
+                        <small>Please check the browser console for more details.</small>
+                    </div>`;
+            });
+        }
+
+        // Call fetchAvailableFiles when page loads
+        document.addEventListener('DOMContentLoaded', fetchAvailableFiles);
+
+        // Function to populate both file selects
+        function populateFileList(data) {
+            const baseSelect = document.getElementById('base-file-select');
+            const compareSelect = document.getElementById('compare-file-select');
             
-            // Enable/disable analyze button based on file selection
-            document.getElementById('compare-button').disabled = !e.target.files[0];
+            // Clear existing options
+            baseSelect.innerHTML = '<option value="">Select base file...</option>';
+            compareSelect.innerHTML = '<option value="">Select file to compare...</option>';
+            
+            // Clear existing data
+            fetchedGeoJSONFiles.clear();
+            
+            // Store the GeoJSON data for each file
+            data.data.forEach(file => {
+                console.log('Processing file:', {
+                    id: file.id,
+                    name: file.name,
+                    hasGeoJSON: !!file.geojson_data
+                });
+                
+                if (file.geojson_data) {
+                    fetchedGeoJSONFiles.set(file.id.toString(), file.geojson_data);
+                }
+                
+                // Create option for base file select
+                const baseOption = document.createElement('option');
+                baseOption.value = file.id;
+                baseOption.textContent = `${file.name} (${file.vendor_name})`;
+                baseOption.dataset.size = file.size;
+                baseOption.dataset.date = file.date_added;
+                baseSelect.appendChild(baseOption);
+                
+                // Create option for compare file select
+                const compareOption = document.createElement('option');
+                compareOption.value = file.id;
+                compareOption.textContent = `${file.name} (${file.vendor_name})`;
+                compareOption.dataset.size = file.size;
+                compareOption.dataset.date = file.date_added;
+                compareSelect.appendChild(compareOption);
+            });
+            
+            console.log('Stored file IDs:', Array.from(fetchedGeoJSONFiles.keys()));
+        }
+
+        // File select event listeners
+        document.getElementById('base-file-select').addEventListener('change', function(e) {
+            const selectedOption = e.target.options[e.target.selectedIndex];
+            const fileInfo = document.getElementById('base-file-info');
+            
+            if (selectedOption.value) {
+                // Show file info
+                const size = (selectedOption.dataset.size / 1024).toFixed(2);
+                const date = new Date(selectedOption.dataset.date).toLocaleString();
+                fileInfo.innerHTML = `
+                    <div>Size: ${size} KB</div>
+                    <div>Added: ${date}</div>
+                `;
+                
+                // Store as original GeoJSON
+                originalGeoJSON = fetchedGeoJSONFiles.get(selectedOption.value.toString());
+            } else {
+                fileInfo.innerHTML = '';
+                originalGeoJSON = null;
+            }
+            
+            updateCompareButton();
         });
-        
-        // Color picker event listener
-        document.getElementById('overlay-color').addEventListener('input', function(e) {
-            overlayColor = e.target.value;
-            document.getElementById('color-preview').style.backgroundColor = overlayColor;
+
+        document.getElementById('compare-file-select').addEventListener('change', function(e) {
+            const selectedOption = e.target.options[e.target.selectedIndex];
+            const fileInfo = document.getElementById('compare-file-info');
+            
+            if (selectedOption.value) {
+                // Show file info
+                const size = (selectedOption.dataset.size / 1024).toFixed(2);
+                const date = new Date(selectedOption.dataset.date).toLocaleString();
+                fileInfo.innerHTML = `
+                    <div>Size: ${size} KB</div>
+                    <div>Added: ${date}</div>
+                `;
+                
+                // Store as uploaded GeoJSON
+                uploadedGeoJSON = fetchedGeoJSONFiles.get(selectedOption.value.toString());
+            } else {
+                fileInfo.innerHTML = '';
+                uploadedGeoJSON = null;
+            }
+            
+            updateCompareButton();
         });
-        
+
+        // Function to update compare button state
+        function updateCompareButton() {
+            const compareButton = document.getElementById('compare-button');
+            compareButton.disabled = !(originalGeoJSON && uploadedGeoJSON);
+        }
+
         // Analyze mismatches button event listener
         document.getElementById('compare-button').addEventListener('click', function() {
-            const fileInput = document.getElementById('geojson-upload');
-            const file = fileInput.files[0];
-            
-            if (file) {
-                // Create FormData object to send the file
-                const formData = new FormData();
-                formData.append('file', file);
-                
+            if (originalGeoJSON && uploadedGeoJSON) {
                 // Show loading state
-                document.getElementById('compare-button').textContent = 'Analyzing...';
-                document.getElementById('compare-button').disabled = true;
+                this.textContent = 'Analyzing...';
+                this.disabled = true;
                 
-                // First upload the file
-                fetch('/api/upload-geojson', {
-                    method: 'POST',
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
+                try {
+                    // Get the current color from the color picker
+                    overlayColor = document.getElementById('overlay-color').value;
                     
-                    // Store the upload ID
-                    const uploadId = data.upload_id;
-                    currentUploadId = uploadId;
+                    // Compare the two GeoJSON files
+                    const mismatches = findMismatches(originalGeoJSON, uploadedGeoJSON);
                     
-                    // Now compare the uploaded GeoJSON with the original
-                    return fetch('/api/compare-geojson', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            upload_id: uploadId
-                        })
-                    });
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        throw new Error(data.error);
-                    }
+                    // Process the mismatches
+                    displayMismatches(mismatches);
                     
-                    // Fetch the uploaded GeoJSON file to display it with the selected color
-                    fetch('/api/geojson?upload_id=' + currentUploadId)
-                        .then(response => response.json())
-                        .then(geoJsonData => {
-                            // Store the uploaded GeoJSON data
-                            uploadedGeoJSON = geoJsonData;
-                            
-                            // Get the current color from the color picker
-                            overlayColor = document.getElementById('overlay-color').value;
-                            console.log('Using overlay color:', overlayColor);
-                            
-                            // Process the mismatches
-                            displayMismatches(data.mismatches);
-                            
-                            // Update the mismatch stats panel
-                            updateMismatchStats(data.mismatches);
-                            
-                            // Show the mismatch stats panel
-                            document.getElementById('mismatch-stats').style.display = 'block';
-                            
-                            // Reset button state
-                            document.getElementById('compare-button').textContent = 'Analyze Mismatches';
-                            document.getElementById('compare-button').disabled = false;
-                            
-                            // Add layer to the hierarchy
-                            addLayerToHierarchy(file.name, 'uploaded');
-                        })
-                        .catch(error => {
-                            console.error('Error fetching uploaded GeoJSON:', error);
-                            // Continue with mismatch display even if we can't get the full GeoJSON
-                            displayMismatches(data.mismatches);
-                            updateMismatchStats(data.mismatches);
-                            document.getElementById('mismatch-stats').style.display = 'block';
-                            document.getElementById('compare-button').textContent = 'Analyze Mismatches';
-                            document.getElementById('compare-button').disabled = false;
-                            addLayerToHierarchy(file.name, 'uploaded');
-                        });
-                })
-                .catch(error => {
-                    console.error('Error processing GeoJSON:', error);
+                    // Update the mismatch stats panel
+                    updateMismatchStats(mismatches);
+                    
+                    // Show the mismatch stats panel
+                    document.getElementById('mismatch-stats').style.display = 'block';
+                } catch (error) {
+                    console.error('Error analyzing mismatches:', error);
                     alert('Error: ' + error.message);
-                    
+                } finally {
                     // Reset button state
-                    document.getElementById('compare-button').textContent = 'Analyze Mismatches';
-                    document.getElementById('compare-button').disabled = false;
-                });
+                    this.textContent = 'Analyze Mismatches';
+                    this.disabled = false;
+                }
             }
         });
-        
+
         // Function to add a layer to the hierarchy
         function addLayerToHierarchy(name, type) {
             const layersList = document.getElementById('layers-list');
@@ -1384,8 +1508,8 @@
             document.getElementById('mismatch-stats').style.display = 'none';
             
             // Reset the file input
-            document.getElementById('geojson-upload').value = '';
-            document.getElementById('file-name').textContent = 'No file selected';
+            document.getElementById('geojson-select').value = '';
+            document.getElementById('file-info').innerHTML = '';
             document.getElementById('compare-button').disabled = true;
         }
         
@@ -1556,21 +1680,20 @@
                 });
             }
             
-            // Display missing roads (red) - these are fixed colors for the mismatches
+            // Display missing roads (red)
             if (mismatches.missingRoads && mismatches.missingRoads.length > 0) {
                 const missingLayer = L.geoJSON({
                     type: 'FeatureCollection',
                     features: mismatches.missingRoads
                 }, {
                     style: {
-                        color: '#FF5252', // Fixed color for missing roads
+                        color: '#FF5252',
                         weight: 4,
                         opacity: 0.8,
                         dashArray: '5, 5'
                     },
                     onEachFeature: function(feature, layer) {
-                        const id = feature.id || (feature.properties && feature.properties['@id']);
-                        layer.bindPopup(createApprovalPopup(feature, 'missing', id));
+                        layer.bindPopup(createPopupContent(feature));
                         layer.on('mouseover', function() {
                             this.setStyle({ weight: 6, opacity: 1 });
                         });
@@ -1586,20 +1709,19 @@
                 });
             }
             
-            // Display new roads (green) - these are fixed colors for the mismatches
+            // Display new roads (green)
             if (mismatches.newRoads && mismatches.newRoads.length > 0) {
                 const newLayer = L.geoJSON({
                     type: 'FeatureCollection',
                     features: mismatches.newRoads
                 }, {
                     style: {
-                        color: '#4CAF50', // Fixed color for new roads
+                        color: '#4CAF50',
                         weight: 4,
                         opacity: 0.8
                     },
                     onEachFeature: function(feature, layer) {
-                        const id = feature.id || (feature.properties && feature.properties['@id']);
-                        layer.bindPopup(createApprovalPopup(feature, 'new', id));
+                        layer.bindPopup(createPopupContent(feature));
                         layer.on('mouseover', function() {
                             this.setStyle({ weight: 6, opacity: 1 });
                         });
@@ -1615,7 +1737,7 @@
                 });
             }
             
-            // Display modified roads (yellow) - these are fixed colors for the mismatches
+            // Display modified roads (yellow)
             if (mismatches.modifiedRoads && mismatches.modifiedRoads.length > 0) {
                 const modifiedFeatures = mismatches.modifiedRoads.map(item => {
                     const feature = JSON.parse(JSON.stringify(item.modified));
@@ -1629,14 +1751,12 @@
                     features: modifiedFeatures
                 }, {
                     style: {
-                        color: '#FFC107', // Fixed color for modified roads
+                        color: '#FFC107',
                         weight: 4,
                         opacity: 0.8
                     },
                     onEachFeature: function(feature, layer) {
-                        const id = feature.id || (feature.properties && feature.properties['@id']);
-                        const changeType = feature.properties._changeType;
-                        layer.bindPopup(createApprovalPopup(feature, 'modified', id, changeType));
+                        layer.bindPopup(createPopupContent(feature));
                         layer.on('mouseover', function() {
                             this.setStyle({ weight: 6, opacity: 1 });
                         });
@@ -1659,231 +1779,6 @@
             }
         }
         
-        // Function to create an approval popup for a mismatch
-        function createApprovalPopup(feature, type, id, changeType) {
-            const div = document.createElement('div');
-            div.className = 'approval-popup';
-            
-            let title = '';
-            let description = '';
-            
-            const roadName = feature.properties.name || 'Unnamed road';
-            const roadType = feature.properties.highway || 'Unknown type';
-            
-            if (type === 'missing') {
-                title = 'Missing Road';
-                description = `This road appears to be missing in the new data. It's a ${roadType} road${feature.properties.name ? ' named "' + feature.properties.name + '"' : ''}.`;
-            } else if (type === 'new') {
-                title = 'New Road';
-                description = `This is a new ${roadType} road${feature.properties.name ? ' named "' + feature.properties.name + '"' : ''} that doesn't exist in the current data.`;
-            } else if (type === 'modified') {
-                if (changeType === 'geometry') {
-                    title = 'Modified Road Geometry';
-                    description = `The geometry of this ${roadType} road${feature.properties.name ? ' named "' + feature.properties.name + '"' : ''} has been modified.`;
-                } else {
-                    title = 'Modified Road Properties';
-                    description = `The properties of this ${roadType} road${feature.properties.name ? ' named "' + feature.properties.name + '"' : ''} have been modified.`;
-                    
-                    // Add details about what properties changed
-                    if (feature.properties._originalProps) {
-                        try {
-                            const originalProps = JSON.parse(feature.properties._originalProps);
-                            description += '<br><br><strong>Changes:</strong><ul>';
-                            
-                            for (const key in feature.properties) {
-                                if (!key.startsWith('_') && feature.properties[key] !== originalProps[key]) {
-                                    const oldVal = originalProps[key] || 'none';
-                                    const newVal = feature.properties[key] || 'none';
-                                    description += `<li>${key}: ${oldVal} → ${newVal}</li>`;
-                                }
-                            }
-                            
-                            description += '</ul>';
-                        } catch (e) {
-                            console.error('Error parsing original properties:', e);
-                        }
-                    }
-                }
-            }
-            
-            div.innerHTML = `
-                <h3>${title}</h3>
-                <p>${description}</p>
-                <div class="approval-actions">
-                    <button class="approval-button approve-button" data-id="${id}" data-type="${type}">
-                        <span>✓</span> Approve
-                    </button>
-                    <button class="approval-button reject-button" data-id="${id}" data-type="${type}">
-                        <span>✗</span> Reject
-                    </button>
-                </div>
-            `;
-            
-            // Need to add event listeners after the popup is added to the DOM
-            setTimeout(() => {
-                const approveBtn = div.querySelector('.approve-button');
-                const rejectBtn = div.querySelector('.reject-button');
-                
-                if (approveBtn) {
-                    approveBtn.addEventListener('click', function() {
-                        approveChange(id, type, feature);
-                        map.closePopup();
-                    });
-                }
-                
-                if (rejectBtn) {
-                    rejectBtn.addEventListener('click', function() {
-                        rejectChange(id, type, feature);
-                        map.closePopup();
-                    });
-                }
-            }, 10);
-            
-            return div;
-        }
-        
-        // Store the current upload ID
-        let currentUploadId = null;
-        
-        // Function to approve a change
-        function approveChange(id, type, feature) {
-            // Add to approved changes
-            approvedChanges.push({
-                id: id,
-                type: type,
-                feature: feature
-            });
-            
-            // Update UI to show approval
-            updateMismatchStats();
-            
-            // Send the approval to the server
-            if (currentUploadId) {
-                fetch('/api/approve-changes', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        upload_id: currentUploadId,
-                        changes: {
-                            type: 'single',
-                            action: 'approve',
-                            id: id,
-                            change_type: type,
-                            feature: feature
-                        }
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        console.error('Error approving change:', data.error);
-                    } else {
-                        console.log(`Approved ${type} road with ID ${id}`);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error approving change:', error);
-                });
-            }
-        }
-        
-        // Function to reject a change
-        function rejectChange(id, type, feature) {
-            // Add to rejected changes
-            rejectedChanges.push({
-                id: id,
-                type: type,
-                feature: feature
-            });
-            
-            // Update UI to show rejection
-            updateMismatchStats();
-            
-            // Send the rejection to the server
-            if (currentUploadId) {
-                fetch('/api/approve-changes', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        upload_id: currentUploadId,
-                        changes: {
-                            type: 'single',
-                            action: 'reject',
-                            id: id,
-                            change_type: type,
-                            feature: feature
-                        }
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        console.error('Error rejecting change:', data.error);
-                    } else {
-                        console.log(`Rejected ${type} road with ID ${id}`);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error rejecting change:', error);
-                });
-            }
-        }
-        
-        // Function to approve all changes
-        function approveAllChanges() {
-            // Collect all changes
-            const allChanges = {
-                missingRoads: mismatchLayers.find(ml => ml.type === 'missing')?.layer.getLayers().map(l => l.feature) || [],
-                newRoads: mismatchLayers.find(ml => ml.type === 'new')?.layer.getLayers().map(l => l.feature) || [],
-                modifiedRoads: mismatchLayers.find(ml => ml.type === 'modified')?.layer.getLayers().map(l => l.feature) || []
-            };
-            
-            // Send all approvals to the server
-            if (currentUploadId) {
-                fetch('/api/approve-changes', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        upload_id: currentUploadId,
-                        changes: {
-                            type: 'all',
-                            action: 'approve',
-                            data: allChanges
-                        }
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        console.error('Error approving all changes:', data.error);
-                        alert('Error approving changes: ' + data.error);
-                    } else {
-                        alert('All changes have been approved and will be applied to the map data.');
-                        
-                        // Clear the map and reset
-                        clearMismatches();
-                        document.getElementById('mismatch-stats').style.display = 'none';
-                    }
-                })
-                .catch(error => {
-                    console.error('Error approving all changes:', error);
-                    alert('Error approving changes: ' + error.message);
-                });
-            } else {
-                alert('All changes have been approved and will be applied to the map data.');
-                
-                // Clear the map and reset
-                clearMismatches();
-                document.getElementById('mismatch-stats').style.display = 'none';
-            }
-        }
-        
         // Function to clear mismatches from the map
         function clearMismatches() {
             // Remove all mismatch layers from the map
@@ -1893,8 +1788,6 @@
             
             // Reset arrays
             mismatchLayers = [];
-            approvedChanges = [];
-            rejectedChanges = [];
         }
         
         // Function to update the mismatch stats panel
@@ -1905,9 +1798,6 @@
             const modifiedCount = mismatchLayers.find(ml => ml.type === 'modified')?.layer.getLayers().length || 0;
             
             const totalCount = missingCount + newCount + modifiedCount;
-            const approvedCount = approvedChanges.length;
-            const rejectedCount = rejectedChanges.length;
-            const pendingCount = totalCount - approvedCount - rejectedCount;
             
             // Create compact stats layout
             let html = '';
@@ -1916,24 +1806,6 @@
             html += `<div class="stat-item">
                 <span>Total:</span>
                 <span class="stat-count">${totalCount}</span>
-            </div>`;
-            
-            // Pending stat
-            html += `<div class="stat-item">
-                <span>Pending:</span>
-                <span class="stat-count">${pendingCount}</span>
-            </div>`;
-            
-            // Approved stat
-            html += `<div class="stat-item">
-                <span>Approved:</span>
-                <span class="stat-count">${approvedCount}</span>
-            </div>`;
-            
-            // Rejected stat
-            html += `<div class="stat-item">
-                <span>Rejected:</span>
-                <span class="stat-count">${rejectedCount}</span>
             </div>`;
             
             // Add type counts only if they exist
@@ -1997,59 +1869,6 @@
                 updateMap(data);
             })
             .catch(error => console.error('Error loading GeoJSON data:', error));
-
-        // Add merge button event listener
-        document.getElementById('merge-button').addEventListener('click', function() {
-            if (!currentUploadId) {
-                alert('Please upload and analyze a GeoJSON file first.');
-                return;
-            }
-            
-            // Show loading state
-            this.textContent = 'Merging...';
-            this.disabled = true;
-            
-            // Call the merge endpoint
-            fetch('/api/merge-geojson', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    upload_id: currentUploadId
-                })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    throw new Error(data.error);
-                }
-                
-                // Update the map with merged data
-                updateMap(data.merged_data);
-                
-                // Show success message
-                alert('Roads merged successfully! The map has been updated with the merged data.');
-                
-                // Clear the mismatches
-                clearMismatches();
-                document.getElementById('mismatch-stats').style.display = 'none';
-                
-                // Reset the file input
-                document.getElementById('geojson-upload').value = '';
-                document.getElementById('file-name').textContent = 'No file selected';
-                document.getElementById('compare-button').disabled = true;
-            })
-            .catch(error => {
-                console.error('Error merging roads:', error);
-                alert('Error merging roads: ' + error.message);
-            })
-            .finally(() => {
-                // Reset button state
-                this.textContent = 'Merge Roads';
-                this.disabled = false;
-            });
-        });
 
         // Initialize preview map variable
         let previewMap = null;
@@ -2222,8 +2041,8 @@
                     document.getElementById('mismatch-stats').style.display = 'none';
                     
                     // Reset the file input
-                    document.getElementById('geojson-upload').value = '';
-                    document.getElementById('file-name').textContent = 'No file selected';
+                    document.getElementById('geojson-select').value = '';
+                    document.getElementById('file-info').innerHTML = '';
                     document.getElementById('compare-button').disabled = true;
                 })
                 .catch(error => {
@@ -2255,9 +2074,6 @@
             if (event.target === modal) {
                 modal.style.display = 'none';
             }
-        });
-        
-        // End of DOMContentLoaded event listener
         });
     </script>
 </body>

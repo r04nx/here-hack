@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { roadMergerAPI, RoadDataAnalysis } from '@/lib/api';
 import { Header } from '@/components/Layout/Header';
 import { MapView } from '@/components/Analyst/MapView';
-import { MapModal } from '@/components/Analyst/MapModal';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
@@ -26,16 +24,12 @@ import {
   Star,
   Shield,
   Loader2,
-  FileJson,
-  Eye,
-  ThumbsUp,
-  ThumbsDown,
-  Calendar,
-  User,
-  HardDrive,
-  BarChart2,
-  Trash2,
-  Inbox
+  History,
+  FileText,
+  Timer,
+  CheckSquare,
+  XSquare,
+  PlusSquare
 } from 'lucide-react';
 
 // Mock vendor data with trust scores
@@ -110,6 +104,40 @@ const agentStates = {
   }
 };
 
+// Add new interface for merge operations
+interface MergeOperation {
+  id: number;
+  file1_name: string;
+  file2_name: string;
+  created_at: string;
+  merge_date: string;
+  merge_duration_ms: number;
+  output_file_id: string;
+  roads_added: number;
+  roads_merged: number;
+  roads_skipped: number;
+  similarity_threshold: number;
+  status: string;
+  total_roads_file1: number;
+  total_roads_file2: number;
+  total_roads_merged: number;
+  error_message: string | null;
+  updated_at: string;
+}
+
+interface MergeOperationsResponse {
+  data: {
+    operations: MergeOperation[];
+    pagination: {
+      page: number;
+      per_page: number;
+      total: number;
+      total_pages: number;
+    };
+  };
+  success: boolean;
+}
+
 const AnalystDashboard = () => {
   const [trustThreshold, setTrustThreshold] = useState<number>(75);
   const [selectedVendor, setSelectedVendor] = useState<number | null>(null);
@@ -117,151 +145,11 @@ const AnalystDashboard = () => {
   const [currentAgentState, setCurrentAgentState] = useState(agentStates);
   const [autoMergeEnabled, setAutoMergeEnabled] = useState<boolean>(false);
   const [processingDemo, setProcessingDemo] = useState<boolean>(false);
+  const [mergeOperations, setMergeOperations] = useState<MergeOperation[]>([]);
+  const [loadingMergeHistory, setLoadingMergeHistory] = useState(false);
   
-  // State for uploaded files
-  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
-  const [loadingFiles, setLoadingFiles] = useState<boolean>(true);
-  const [fileError, setFileError] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<any>(null);
-  const [selectedFileId, setSelectedFileId] = useState<number | null>(null);
-  const [analyzing, setAnalyzing] = useState<boolean>(false);
-  const [analysisResult, setAnalysisResult] = useState<any>(null);
-  const [mapModalOpen, setMapModalOpen] = useState<boolean>(false);
-  const [mapData, setMapData] = useState<any>(null);
-  const [merging, setMerging] = useState<boolean>(false);
-  const [mergeStatus, setMergeStatus] = useState<{success: boolean; message: string} | null>(null);
-  
-  // Sample GeoJSON data for testing
-  const sampleGeoJSON = {
-    "type": "FeatureCollection",
-    "features": [
-      {
-        "type": "Feature",
-        "properties": {
-          "id": "road1",
-          "name": "Main Street",
-          "type": "primary",
-          "speed_limit": 50,
-          "lanes": 2,
-          "oneway": false
-        },
-        "geometry": {
-          "type": "LineString",
-          "coordinates": [
-            [72.8776, 19.0760],
-            [72.8780, 19.0765],
-            [72.8785, 19.0770],
-            [72.8790, 19.0775]
-          ]
-        }
-      },
-      {
-        "type": "Feature",
-        "properties": {
-          "id": "intersection1",
-          "type": "intersection",
-          "traffic_signals": true
-        },
-        "geometry": {
-          "type": "Point",
-          "coordinates": [72.8785, 19.0770]
-        }
-      },
-      {
-        "type": "Feature",
-        "properties": {
-          "id": "traffic_signal1",
-          "highway": "traffic_signals"
-        },
-        "geometry": {
-          "type": "Point",
-          "coordinates": [72.8790, 19.0775]
-        }
-      }
-    ]
-  };
-
-  // Function to fetch uploaded GeoJSON files
-  const fetchUploadedFiles = async () => {
-    setLoadingFiles(true);
-    setFileError(null);
-    try {
-      const response = await roadMergerAPI.getUploadedGeoJSONFiles();
-      if (response.success) {
-        setUploadedFiles(response.data);
-      } else {
-        setFileError(response.message || 'Failed to fetch uploaded files');
-      }
-    } catch (error) {
-      console.error('Error fetching uploaded files:', error);
-      setFileError('Failed to fetch uploaded files');
-    } finally {
-      setLoadingFiles(false);
-    }
-  };
-
-  // Function to fetch a specific GeoJSON file
-  const fetchGeoJSONFile = async (id: number) => {
-    setSelectedFileId(id);
-    setSelectedFile(null);
-    try {
-      const response = await roadMergerAPI.getGeoJSONById(id);
-      if (response.success) {
-        setSelectedFile(response.data);
-        // Set map data for the modal
-        setMapData(response.data.geojson_data);
-      } else {
-        setFileError(response.message || 'Failed to fetch file details');
-      }
-    } catch (error) {
-      console.error(`Error fetching GeoJSON with ID ${id}:`, error);
-      setFileError('Failed to fetch file details');
-    }
-  };
-
-  // Function to analyze a GeoJSON file by ID
-  const handleAnalyze = async (id: number) => {
-    if (!id) return;
-    
-    setAnalyzing(true);
-    setAnalysisResult(null);
-    setMergeStatus(null);
-    
-    try {
-      const result = await roadMergerAPI.analyzeGeoJSONById(id);
-      console.log('Analysis result:', result);
-      setAnalysisResult(result);
-    } catch (error) {
-      console.error('Error analyzing file:', error);
-      setFileError('Failed to analyze the file. Please try again.');
-    } finally {
-      setAnalyzing(false);
-    }
-  };
-
-  // Function to approve a GeoJSON file for merging
-  const approveGeoJSONFile = async (id: number, notes: string = '') => {
-    try {
-      const response = await roadMergerAPI.approveGeoJSON(id, notes);
-      if (response.success) {
-        // Refresh the list after approval
-        fetchUploadedFiles();
-      } else {
-        setFileError(response.message || 'Approval failed');
-      }
-    } catch (error) {
-      console.error(`Error approving GeoJSON with ID ${id}:`, error);
-      setFileError('Approval failed');
-    }
-  };
-  
-  // Load uploaded files when component mounts
-  useEffect(() => {
-    fetchUploadedFiles();
-  }, []);
-
-  // Function to run AI agent analysis using the backend API
-  const runAgentAnalysis = async () => {
+  // Function to simulate AI agent process
+  const runAgentAnalysis = () => {
     setAgentAnalysisActive(true);
     setProcessingDemo(true);
     
@@ -273,112 +161,81 @@ const AnalystDashboard = () => {
       finalDecision: { ...agentStates.finalDecision, status: 'pending', progress: 0 }
     });
     
-    try {
-      // Get the selected vendor name
-      const vendorName = selectedVendor ? vendors.find(v => v.id === selectedVendor)?.name || 'RoadTech Solutions' : 'RoadTech Solutions';
-      
-      // Start data extraction phase
-      setCurrentAgentState(prev => ({
-        ...prev,
-        dataExtraction: { ...prev.dataExtraction, status: 'in_progress', progress: 25 }
-      }));
-      
-      // Call the backend API to analyze the GeoJSON data
-      const analysisResult = await roadMergerAPI.analyzeGeoJSON(sampleGeoJSON, vendorName);
-      
-      // Update UI based on the API response
-      if (analysisResult.status === 'success' && analysisResult.process_results) {
-        const { extraction, validation, news_analysis, decision } = analysisResult.process_results;
-        
-        // Update data extraction state
-        setCurrentAgentState(prev => ({
+    // Simulate data extraction agent
+    const extractionInterval = setInterval(() => {
+      setCurrentAgentState(prev => {
+        const newProgress = Math.min(prev.dataExtraction.progress + 10, 100);
+        return {
           ...prev,
-          dataExtraction: { 
-            ...prev.dataExtraction, 
-            status: extraction.status === 'success' ? 'completed' : 'error',
-            progress: 100,
-            result: extraction.data ? {
-              roadSegments: extraction.data.road_segments.count,
-              intersections: extraction.data.intersections.count,
-              trafficSignals: extraction.data.traffic_signals.count,
-              region: extraction.data.location_info.region
-            } : undefined
+          dataExtraction: {
+            ...prev.dataExtraction,
+            progress: newProgress,
+            status: newProgress === 100 ? 'completed' : 'in_progress'
           }
-        }));
-        
-        // Update all agent states immediately in sequence
-        // Update external validation state
-        setCurrentAgentState(prev => ({
-          ...prev,
-          dataExtraction: { 
-            ...prev.dataExtraction, 
-            status: extraction.status === 'success' ? 'completed' : 'error',
-            progress: 100,
-            result: extraction.data ? {
-              roadSegments: extraction.data.road_segments.count,
-              intersections: extraction.data.intersections.count,
-              trafficSignals: extraction.data.traffic_signals.count,
-              region: extraction.data.location_info.region
-            } : undefined
-          },
-          externalValidation: { 
-            ...prev.externalValidation, 
-            status: validation.status === 'success' ? 'completed' : 'error',
-            progress: 100,
-            result: validation.validation_results ? {
-              googleMapsMatchRate: validation.validation_results.google_maps_match_rate * 100,
-              wazeMatchRate: validation.validation_results.waze_match_rate * 100,
-              osmMatchRate: validation.validation_results.osm_match_rate * 100,
-              overallMatchRate: validation.validation_results.overall_match_rate * 100
-            } : undefined
-          },
-          newsAnalysis: { 
-            ...prev.newsAnalysis, 
-            status: news_analysis.status === 'success' ? 'completed' : 'error',
-            progress: 100,
-            result: news_analysis.news_analysis ? {
-              articlesAnalyzed: news_analysis.news_analysis.articles_analyzed,
-              findings: news_analysis.news_analysis.findings
-            } : undefined
-          },
-          finalDecision: { 
-            ...prev.finalDecision, 
-            status: 'completed',
-            progress: 100,
-            result: {
-              vendorName: decision.vendor_name,
-              trustScore: decision.vendor_trust_score,
-              confidenceScore: decision.confidence_score,
-              recommendation: decision.recommendation,
-              reasoning: decision.reasoning
+        };
+      });
+    }, 500);
+    
+    // Simulate external validation agent
+    setTimeout(() => {
+      clearInterval(extractionInterval);
+      const validationInterval = setInterval(() => {
+        setCurrentAgentState(prev => {
+          const newProgress = Math.min(prev.externalValidation.progress + 8, 100);
+          return {
+            ...prev,
+            externalValidation: {
+              ...prev.externalValidation,
+              progress: newProgress,
+              status: newProgress === 100 ? 'completed' : 'in_progress'
             }
-          }
-        }));
+          };
+        });
+      }, 600);
+      
+      // Simulate news analysis agent
+      setTimeout(() => {
+        clearInterval(validationInterval);
+        const newsInterval = setInterval(() => {
+          setCurrentAgentState(prev => {
+            const newProgress = Math.min(prev.newsAnalysis.progress + 12, 100);
+            return {
+              ...prev,
+              newsAnalysis: {
+                ...prev.newsAnalysis,
+                progress: newProgress,
+                status: newProgress === 100 ? 'completed' : 'in_progress'
+              }
+            };
+          });
+        }, 400);
         
-        setProcessingDemo(false);
-      } else {
-        // Handle error
-        setCurrentAgentState(prev => ({
-          ...prev,
-          dataExtraction: { ...prev.dataExtraction, status: 'error', progress: 100 },
-          externalValidation: { ...prev.externalValidation, status: 'error', progress: 0 },
-          newsAnalysis: { ...prev.newsAnalysis, status: 'error', progress: 0 },
-          finalDecision: { ...prev.finalDecision, status: 'error', progress: 0 }
-        }));
-        setProcessingDemo(false);
-      }
-    } catch (error) {
-      console.error('Error running agent analysis:', error);
-      // Handle error
-      setCurrentAgentState(prev => ({
-        ...prev,
-        dataExtraction: { ...prev.dataExtraction, status: 'error', progress: 100 },
-        externalValidation: { ...prev.externalValidation, status: 'error', progress: 0 },
-        newsAnalysis: { ...prev.newsAnalysis, status: 'error', progress: 0 },
-        finalDecision: { ...prev.finalDecision, status: 'error', progress: 0 }
-      }));
-      setProcessingDemo(false);
-    }
+        // Simulate final decision agent
+        setTimeout(() => {
+          clearInterval(newsInterval);
+          const decisionInterval = setInterval(() => {
+            setCurrentAgentState(prev => {
+              const newProgress = Math.min(prev.finalDecision.progress + 15, 100);
+              return {
+                ...prev,
+                finalDecision: {
+                  ...prev.finalDecision,
+                  progress: newProgress,
+                  status: newProgress === 100 ? 'completed' : 'in_progress'
+                }
+              };
+            });
+          }, 300);
+          
+          // Complete the process
+          setTimeout(() => {
+            clearInterval(decisionInterval);
+            setCurrentAgentState(agentStates);
+            setProcessingDemo(false);
+          }, 2000);
+        }, 5000);
+      }, 6000);
+    }, 5000);
   };
   
   // Function to handle auto-merge toggle
@@ -412,6 +269,27 @@ const AnalystDashboard = () => {
     }
   };
 
+  // Add function to fetch merge operations
+  const fetchMergeOperations = async () => {
+    setLoadingMergeHistory(true);
+    try {
+      const response = await fetch('http://127.0.0.1:5000/merge-operations/list');
+      const data: MergeOperationsResponse = await response.json();
+      if (data.success) {
+        setMergeOperations(data.data.operations);
+      }
+    } catch (error) {
+      console.error('Error fetching merge operations:', error);
+    } finally {
+      setLoadingMergeHistory(false);
+    }
+  };
+
+  // Fetch merge operations on component mount
+  useEffect(() => {
+    fetchMergeOperations();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header userType="analyst" />
@@ -422,12 +300,8 @@ const AnalystDashboard = () => {
           <p className="text-gray-600">AI-powered analysis and trust-based approval system</p>
         </div>
 
-        <Tabs defaultValue="uploaded-files">
+        <Tabs defaultValue="trust-scores">
           <TabsList className="mb-4">
-            <TabsTrigger value="uploaded-files">
-              <Inbox className="w-4 h-4 mr-2" />
-              Uploaded Files
-            </TabsTrigger>
             <TabsTrigger value="trust-scores">
               <Shield className="w-4 h-4 mr-2" />
               Vendor Trust Scores
@@ -440,211 +314,11 @@ const AnalystDashboard = () => {
               <MapPin className="w-4 h-4 mr-2" />
               Map View
             </TabsTrigger>
+            <TabsTrigger value="merge-history">
+              <History className="w-4 h-4 mr-2" />
+              Merge History
+            </TabsTrigger>
           </TabsList>
-          
-          <TabsContent value="uploaded-files" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-1">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center space-x-2">
-                      <FileJson className="w-5 h-5 text-blue-500" />
-                      <span>Vendor Uploads</span>
-                    </CardTitle>
-                    <CardDescription>
-                      GeoJSON files uploaded by vendors for review
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {loadingFiles ? (
-                      <div className="flex justify-center items-center py-8">
-                        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-                        <span className="ml-2">Loading files...</span>
-                      </div>
-                    ) : fileError ? (
-                      <div className="text-red-500 py-4">{fileError}</div>
-                    ) : uploadedFiles.length === 0 ? (
-                      <div className="text-gray-500 py-4 text-center">
-                        <p>No GeoJSON files have been uploaded yet.</p>
-                      </div>
-                    ) : (
-                      <div className="grid gap-3 max-h-[500px] overflow-y-auto pr-2">
-                        {uploadedFiles.map((file) => (
-                          <div 
-                            key={file.id} 
-                            className={`bg-white rounded-lg border shadow-sm hover:shadow-md transition-all p-3 cursor-pointer ${selectedFileId === file.id ? 'border-blue-500 bg-blue-50' : ''}`}
-                            onClick={() => fetchGeoJSONFile(file.id)}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 flex-1">
-                                <FileJson className="h-5 w-5 text-blue-600" />
-                                <h3 className="font-medium text-gray-900 truncate max-w-[150px]" title={file.name}>
-                                  {file.name}
-                                </h3>
-                              </div>
-                            </div>
-                            <div className="mt-2 grid grid-cols-1 gap-y-1 text-xs text-gray-500">
-                              <div className="flex items-center gap-1">
-                                <User className="h-3 w-3 text-gray-400" />
-                                <span>{file.vendor_name}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <Calendar className="h-3 w-3 text-gray-400" />
-                                <span>{new Date(file.date_added).toLocaleDateString()}</span>
-                              </div>
-                              <div className="flex items-center gap-1">
-                                <HardDrive className="h-3 w-3 text-gray-400" />
-                                <span>{(file.size / 1024).toFixed(2)} KB</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </div>
-              
-              <div className="lg:col-span-2">
-                {selectedFile ? (
-                  <div className="space-y-4">
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex justify-between items-center">
-                          <div>{selectedFile.name}</div>
-                          <div className="flex gap-2">
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => {
-                                setMapModalOpen(true);
-                              }}
-                              className="flex items-center gap-1"
-                            >
-                              <Eye className="h-4 w-4" />
-                              <span>View Map</span>
-                            </Button>
-                            <Button 
-                              size="sm" 
-                              variant="default"
-                              onClick={() => analyzeGeoJSONFile(selectedFile.id)}
-                              disabled={analyzing}
-                              className="flex items-center gap-1"
-                            >
-                              {analyzing ? (
-                                <>
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                  <span>Analyzing...</span>
-                                </>
-                              ) : (
-                                <>
-                                  <BarChart2 className="h-4 w-4" />
-                                  <span>Analyze</span>
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        </CardTitle>
-                        <CardDescription>
-                          Uploaded by {selectedFile.vendor_name} on {new Date(selectedFile.date_added).toLocaleString()}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                          <div className="p-3 bg-gray-50 rounded-md">
-                            <div className="text-sm font-medium text-gray-500">Size</div>
-                            <div className="text-lg font-semibold">{(selectedFile.size / 1024).toFixed(2)} KB</div>
-                          </div>
-                          <div className="p-3 bg-gray-50 rounded-md">
-                            <div className="text-sm font-medium text-gray-500">File Hash</div>
-                            <div className="text-sm font-mono truncate" title={selectedFile.file_hash}>
-                              {selectedFile.file_hash ? selectedFile.file_hash.substring(0, 12) + '...' : 'N/A'}
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                    
-                    {analysisResult && (
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="flex items-center gap-2">
-                            <Brain className="h-5 w-5 text-purple-600" />
-                            <span>Analysis Results</span>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {analysisResult.decision && (
-                              <div className="p-4 border rounded-md bg-gray-50">
-                                <div className="flex justify-between items-center mb-3">
-                                  <h3 className="font-semibold text-lg">AI Recommendation</h3>
-                                  <Badge 
-                                    className={`${analysisResult.decision.recommendation === 'MERGE' ? 'bg-green-100 text-green-800' : 
-                                      analysisResult.decision.recommendation === 'REVIEW' ? 'bg-orange-100 text-orange-800' : 
-                                      'bg-red-100 text-red-800'}`}
-                                  >
-                                    {analysisResult.decision.recommendation}
-                                  </Badge>
-                                </div>
-                                <div className="mb-3">
-                                  <div className="text-sm text-gray-600 mb-1">Confidence Score</div>
-                                  <div className="flex items-center">
-                                    <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                      <div 
-                                        className={`h-full ${analysisResult.decision.confidence_score >= 80 ? 'bg-green-600' : 
-                                          analysisResult.decision.confidence_score >= 60 ? 'bg-blue-600' : 
-                                          analysisResult.decision.confidence_score >= 40 ? 'bg-orange-600' : 'bg-red-600'}`}
-                                        style={{ width: `${analysisResult.decision.confidence_score}%` }}
-                                      />
-                                    </div>
-                                    <span className="ml-2 font-medium">{analysisResult.decision.confidence_score.toFixed(1)}%</span>
-                                  </div>
-                                </div>
-                                <div className="text-sm">
-                                  <div className="font-medium mb-1">Reasoning:</div>
-                                  <p className="text-gray-700">{analysisResult.decision.reasoning}</p>
-                                </div>
-                              </div>
-                            )}
-                            
-                            <div className="flex justify-end gap-3 mt-4">
-                              <Button 
-                                variant="outline" 
-                                className="flex items-center gap-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                onClick={() => setAnalysisResult(null)}
-                              >
-                                <ThumbsDown className="h-4 w-4" />
-                                <span>Reject</span>
-                              </Button>
-                              <Button 
-                                variant="default" 
-                                className="flex items-center gap-1 bg-green-600 hover:bg-green-700"
-                                onClick={() => approveGeoJSONFile(selectedFile.id)}
-                              >
-                                <ThumbsUp className="h-4 w-4" />
-                                <span>Approve & Merge</span>
-                              </Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-                  </div>
-                ) : (
-                  <Card>
-                    <CardContent className="flex flex-col items-center justify-center py-12">
-                      <FileJson className="h-16 w-16 text-gray-300 mb-4" />
-                      <h3 className="text-lg font-medium text-gray-700 mb-2">No File Selected</h3>
-                      <p className="text-gray-500 text-center max-w-md">
-                        Select a GeoJSON file from the list to view details, analyze with AI agents, and approve for merging.
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-              </div>
-            </div>
-          </TabsContent>
           
           <TabsContent value="trust-scores" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -1012,15 +686,109 @@ const AnalystDashboard = () => {
               <MapView />
             </div>
           </TabsContent>
+          
+          <TabsContent value="merge-history" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <History className="w-5 h-5 text-blue-500" />
+                  <span>Merge Operations History</span>
+                </CardTitle>
+                <CardDescription>
+                  Track and analyze previous road data merge operations
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingMergeHistory ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {mergeOperations.map((operation) => (
+                      <div key={operation.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-2">
+                            <FileText className="w-5 h-5 text-gray-500" />
+                            <h3 className="font-medium">Merge Operation #{operation.id}</h3>
+                          </div>
+                          <Badge className={operation.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                            {operation.status}
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-500">Files</p>
+                            <p className="text-sm font-medium truncate" title={`${operation.file1_name} + ${operation.file2_name}`}>
+                              {operation.file1_name} + {operation.file2_name}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-500">Duration</p>
+                            <p className="text-sm font-medium">
+                              <Timer className="w-4 h-4 inline mr-1" />
+                              {(operation.merge_duration_ms / 1000).toFixed(2)}s
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-500">Similarity Threshold</p>
+                            <p className="text-sm font-medium">{operation.similarity_threshold}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-500">Date</p>
+                            <p className="text-sm font-medium">{new Date(operation.created_at).toLocaleString()}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-blue-50 p-3 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <PlusSquare className="w-4 h-4 text-blue-600" />
+                              <span className="text-sm font-medium">Added</span>
+                            </div>
+                            <p className="text-lg font-bold text-blue-700 mt-1">{operation.roads_added}</p>
+                          </div>
+                          <div className="bg-green-50 p-3 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <CheckSquare className="w-4 h-4 text-green-600" />
+                              <span className="text-sm font-medium">Merged</span>
+                            </div>
+                            <p className="text-lg font-bold text-green-700 mt-1">{operation.roads_merged}</p>
+                          </div>
+                          <div className="bg-orange-50 p-3 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <XSquare className="w-4 h-4 text-orange-600" />
+                              <span className="text-sm font-medium">Skipped</span>
+                            </div>
+                            <p className="text-lg font-bold text-orange-700 mt-1">{operation.roads_skipped}</p>
+                          </div>
+                          <div className="bg-purple-50 p-3 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <BarChart3 className="w-4 h-4 text-purple-600" />
+                              <span className="text-sm font-medium">Total</span>
+                            </div>
+                            <p className="text-lg font-bold text-purple-700 mt-1">{operation.total_roads_merged}</p>
+                          </div>
+                        </div>
+
+                        {operation.error_message && (
+                          <Alert className="mt-4 bg-red-50 border-red-200">
+                            <AlertTriangle className="w-4 h-4 text-red-600" />
+                            <AlertTitle className="text-red-700">Error</AlertTitle>
+                            <AlertDescription className="text-red-600 text-xs">
+                              {operation.error_message}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
-        
-        {/* Map Modal */}
-        <MapModal
-          isOpen={mapModalOpen}
-          onClose={() => setMapModalOpen(false)}
-          geojsonData={mapData}
-          title={selectedFile?.name || "GeoJSON Map View"}
-        />
       </div>
     </div>
   );
