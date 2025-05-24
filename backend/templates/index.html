@@ -44,10 +44,39 @@
             height: 15px;
             margin-right: 5px;
         }
+        .file-upload {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(40, 40, 40, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+        }
+        .file-upload input[type="file"] {
+            display: none;
+        }
+        .file-upload label {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #4ECDC4;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        .file-upload label:hover {
+            background: #2EC4B6;
+        }
     </style>
 </head>
 <body>
     <div id="map"></div>
+    <div class="file-upload">
+        <label for="geojson-upload">Upload GeoJSON</label>
+        <input type="file" id="geojson-upload" accept=".geojson,.json">
+    </div>
     
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
@@ -104,44 +133,73 @@
             content += '</div>';
             return content;
         }
+
+        // Function to add GeoJSON layer to map
+        function addGeoJSONToMap(data) {
+            // Remove existing GeoJSON layer if it exists
+            if (window.currentGeoJSONLayer) {
+                map.removeLayer(window.currentGeoJSONLayer);
+            }
+            
+            // Remove existing legend if it exists
+            if (window.currentLegend) {
+                map.removeControl(window.currentLegend);
+            }
+            
+            // Add new GeoJSON layer
+            window.currentGeoJSONLayer = L.geoJSON(data, {
+                style: getStyle,
+                onEachFeature: (feature, layer) => {
+                    layer.bindPopup(createPopupContent(feature));
+                }
+            }).addTo(map);
+            
+            // Fit map bounds to GeoJSON layer
+            map.fitBounds(window.currentGeoJSONLayer.getBounds());
+            
+            // Create legend
+            const legend = L.control({ position: 'bottomright' });
+            legend.onAdd = function(map) {
+                const div = L.DomUtil.create('div', 'legend');
+                div.innerHTML = '<h4>Road Types</h4>';
+                
+                for (const type in styles) {
+                    if (type !== 'default') {
+                        div.innerHTML += `
+                            <div class="legend-item">
+                                <span class="color-box" style="background-color: ${styles[type].color}"></span>
+                                ${type.charAt(0).toUpperCase() + type.slice(1)}
+                            </div>
+                        `;
+                    }
+                }
+                
+                return div;
+            };
+            window.currentLegend = legend;
+            legend.addTo(map);
+        }
         
-        // Fetch GeoJSON data from our API endpoint
-        fetch('/api/geojson')
-            .then(response => response.json())
-            .then(data => {
-                // Add GeoJSON layer to map
-                const geojsonLayer = L.geoJSON(data, {
-                    style: getStyle,
-                    onEachFeature: (feature, layer) => {
-                        layer.bindPopup(createPopupContent(feature));
+        // Handle file upload
+        document.getElementById('geojson-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const geojsonData = JSON.parse(e.target.result);
+                        addGeoJSONToMap(geojsonData);
+                    } catch (error) {
+                        alert('Error parsing GeoJSON file. Please make sure it is valid GeoJSON.');
+                        console.error('Error parsing GeoJSON:', error);
                     }
-                }).addTo(map);
-                
-                // Fit map bounds to GeoJSON layer
-                map.fitBounds(geojsonLayer.getBounds());
-                
-                // Create legend
-                const legend = L.control({ position: 'bottomright' });
-                legend.onAdd = function(map) {
-                    const div = L.DomUtil.create('div', 'legend');
-                    div.innerHTML = '<h4>Road Types</h4>';
-                    
-                    for (const type in styles) {
-                        if (type !== 'default') {
-                            div.innerHTML += `
-                                <div class="legend-item">
-                                    <span class="color-box" style="background-color: ${styles[type].color}"></span>
-                                    ${type.charAt(0).toUpperCase() + type.slice(1)}
-                                </div>
-                            `;
-                        }
-                    }
-                    
-                    return div;
                 };
-                legend.addTo(map);
-            })
-            .catch(error => console.error('Error loading GeoJSON data:', error));
+                reader.readAsText(file);
+            }
+        });
+        
+        // Initialize map centered on Mumbai without loading any GeoJSON
+        map.setView([19.0760, 72.8777], 12);
     </script>
 </body>
 </html>

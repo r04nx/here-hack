@@ -1,73 +1,110 @@
-# Welcome to your Lovable project
+# HERE Tech Hackathon - Road Data Merger
 
-## Project info
+A smart road data merger application that uses AI-powered analysis and trust-based approval system for merging road data from different vendors.
 
-**URL**: https://lovable.dev/projects/e6df64ed-0922-4497-a5df-ef7cb41a7053
+## Features
 
-## How can I edit this code?
+- **Vendor Trust Scores**: Reinforcement learning based trust scores for data providers
+- **Multi-Agent Analysis**: AI-powered data validation and verification system
+- **Map View**: Visual representation of road data
+- **Merge History**: Track and analyze previous road data merge operations
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- **Frontend**:
+  - React
+  - TypeScript
+  - Vite
+  - shadcn-ui
+  - Tailwind CSS
+  - Lucide Icons
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/e6df64ed-0922-4497-a5df-ef7cb41a7053) and start prompting.
+- **Backend**:
+  - Python (FastAPI)
+  - GeoJSON processing
+  - Road data merging algorithms
 
-Changes made via Lovable will be committed automatically to this repo.
+## Getting Started
 
-**Use your preferred IDE**
+### Prerequisites
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+- Node.js & npm
+- Python 3.8+
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+### Installation
 
-Follow these steps:
-
+1. Clone the repository:
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+git clone <repository-url>
+cd here-hack/frontend
+```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+2. Install frontend dependencies:
+```sh
+npm install
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+3. Start the development server:
+```sh
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+4. The application will be available at `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Backend Setup
 
-**Use GitHub Codespaces**
+1. Navigate to the backend directory:
+```sh
+cd ../backend
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+2. Install Python dependencies:
+```sh
+pip install -r requirements.txt
+```
 
-## What technologies are used for this project?
+3. Start the backend server:
+```sh
+python main.py
+```
 
-This project is built with:
+The backend API will be available at `http://127.0.0.1:5000`
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## API Endpoints
 
-## How can I deploy this project?
+- `GET /merge-operations/list`: List all merge operations
+- Additional endpoints for data merging and analysis
 
-Simply open [Lovable](https://lovable.dev/projects/e6df64ed-0922-4497-a5df-ef7cb41a7053) and click on Share -> Publish.
+## Project Structure
 
-## Can I connect a custom domain to my Lovable project?
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── Analyst/
+│   │   │   └── MapView.tsx
+│   │   └── Layout/
+│   │       └── Header.tsx
+│   ├── pages/
+│   │   └── analyst.tsx
+│   └── ...
+├── public/
+└── package.json
 
-Yes, you can!
+backend/
+├── main.py
+├── requirements.txt
+└── ...
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Contributing
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
+
+## License
+
+This project is part of the HERE Tech Hackathon and is subject to the hackathon's terms and conditions.
