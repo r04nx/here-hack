@@ -1,7 +1,7 @@
 # RoadFusion: AI-Powered Smart Road Data Merger
 
 <div align="center">
-  <img src="frontend/public/logo.png" alt="RoadFusion Logo" width="200" />
+  <img src="frontend/assets/logo-no-bg.png" alt="RoadFusion Logo" width="200" />
   <p><em>Transforming Road Data Management with Multi-Agent AI</em></p>
 </div>
 
@@ -9,9 +9,38 @@
 
 RoadFusion is a cutting-edge platform that revolutionizes how road infrastructure data is validated, analyzed, and merged into production systems. Using a sophisticated multi-agent AI architecture, RoadFusion ensures that only high-quality, validated road data makes it into mapping systems, improving navigation accuracy and safety for millions of users worldwide.
 
+## 📸 Screenshots
+
+### Analyst Dashboard - Multi-Agent Analysis
 <div align="center">
-  <img src="frontend/public/dashboard.png" alt="RoadFusion Dashboard" width="800" />
+  <img src="frontend/assets/Screenshot from 2025-05-24 12-23-04.png" alt="RoadFusion Analyst Dashboard" width="800" />
+  <p><em>Analyst dashboard showing the multi-agent analysis pipeline in action</em></p>
 </div>
+
+### Map Visualization Interface
+<div align="center">
+  <img src="frontend/assets/Screenshot from 2025-05-24 12-23-31.png" alt="RoadFusion Map Visualization" width="800" />
+  <p><em>Interactive map visualization of road data with quality indicators</em></p>
+</div>
+
+### Vendor Trust Score Dashboard
+<div align="center">
+  <img src="frontend/assets/Screenshot from 2025-05-24 12-24-53.png" alt="Vendor Trust Scores" width="800" />
+  <p><em>Vendor trust score dashboard showing historical performance metrics</em></p>
+</div>
+
+### Decision Analysis Interface
+<div align="center">
+  <img src="frontend/assets/Screenshot from 2025-05-24 12-32-33.png" alt="Decision Analysis Interface" width="800" />
+  <p><em>Detailed decision analysis with confidence scores and reasoning</em></p>
+</div>
+
+### Mobile Companion App
+<div align="center">
+  <img src="frontend/assets/Untitled design.png" alt="Mobile Companion App" width="600" />
+  <p><em>Mobile companion app for field validation and user feedback collection</em></p>
+</div>
+
 
 ## 🚀 Unique Selling Points
 
@@ -422,9 +451,15 @@ HERE_API_KEY=your_here_api_key
 
 The RoadFusion ecosystem includes a mobile companion app that allows users to submit real-time feedback about road conditions, construction, and map accuracy. This feedback is incorporated into the AI analysis pipeline to improve data quality and validation.
 
-<div align="center">
-  <img src="frontend/public/mobile-app.png" alt="RoadFusion Mobile App" width="300" />
-</div>
+Key features of the mobile app include:
+
+- Real-time road condition reporting
+- Photo submission of road issues
+- GPS-tagged feedback for precise location mapping
+- Integration with the vendor trust scoring system
+- Gamification elements to encourage user participation
+
+User feedback serves as a critical reinforcement learning signal that continuously improves the quality of our road data and vendor trust assessments.
 
 ## 🤝 Contributing
 
