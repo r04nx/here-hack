@@ -115,7 +115,7 @@ const VendorDashboard = () => {
       setError(res.message || "Delete failed");
     }
   };
-
+  
   const handleUpdate = async (id: number, updates: any) => {
     setUpdating(true);
     const res = await updateGeoJSON(id, updates);

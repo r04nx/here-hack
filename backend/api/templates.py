@@ -5,6 +5,8 @@ import uuid
 import tempfile
 from dotenv import load_dotenv
 from .merger import RoadMerger
+from datetime import datetime
+from utils import get_db_connection
 
 # Load environment variables from .env file
 load_dotenv()
@@ -432,7 +434,7 @@ def preview_merge():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@templates_bp.route('/api/download-merged', methods=['GET'])
+@templates_bp.route('/download-merged', methods=['GET'])
 def download_merged():
     try:
         upload_id = request.args.get('upload_id')
@@ -445,14 +447,178 @@ def download_merged():
         if not os.path.exists(merged_file_path):
             return jsonify({'error': 'Merged file not found'}), 404
         
+        # Generate a filename based on the current timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        download_filename = f'merged_roads_{timestamp}.geojson'
+        
         return send_from_directory(
             os.path.dirname(merged_file_path),
             os.path.basename(merged_file_path),
             as_attachment=True,
-            download_name='merged_roads.geojson'
+            download_name=download_filename
         )
     
     except Exception as e:
+        print(f"Error in download_merged: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@templates_bp.route('/merge')
+def merge():
+    return render_template('merge.html')
+
+@templates_bp.route('/api/merge-files', methods=['POST'])
+def merge_files():
+    try:
+        data = request.json
+        
+        if not data or 'file1_id' not in data or 'file2_id' not in data or 'threshold' not in data:
+            return jsonify({'error': 'File IDs and threshold are required'}), 400
+        
+        file1_name = data['file1_id']  # Now contains the complete filename
+        file2_name = data['file2_id']  # Now contains the complete filename
+        threshold = float(data['threshold'])
+        
+        # Get file paths - check both upload directory and prod directory
+        file1_path = None
+        file2_path = None
+        
+        # Check upload directory first
+        upload_file1_path = os.path.join(UPLOAD_FOLDER, file1_name, 'uploaded.geojson')
+        upload_file2_path = os.path.join(UPLOAD_FOLDER, file2_name, 'uploaded.geojson')
+        
+        # Check prod directory
+        prod_file1_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'prod', file1_name)
+        prod_file2_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'prod', file2_name)
+        
+        print("Checking paths for file 1:")
+        print(f"Upload path: {upload_file1_path}")
+        print(f"Prod path: {prod_file1_path}")
+        print("\nChecking paths for file 2:")
+        print(f"Upload path: {upload_file2_path}")
+        print(f"Prod path: {prod_file2_path}")
+        
+        # Try to find files in either location
+        if os.path.exists(upload_file1_path):
+            file1_path = upload_file1_path
+            print(f"Found file 1 in upload directory: {file1_path}")
+        elif os.path.exists(prod_file1_path):
+            file1_path = prod_file1_path
+            print(f"Found file 1 in prod directory: {file1_path}")
+        else:
+            print(f"File 1 not found in either location")
+            
+        if os.path.exists(upload_file2_path):
+            file2_path = upload_file2_path
+            print(f"Found file 2 in upload directory: {file2_path}")
+        elif os.path.exists(prod_file2_path):
+            file2_path = prod_file2_path
+            print(f"Found file 2 in prod directory: {file2_path}")
+        else:
+            print(f"File 2 not found in either location")
+        
+        if not file1_path or not file2_path:
+            return jsonify({'error': 'One or both files not found'}), 404
+        
+        # Create output path for merged file
+        output_id = str(uuid.uuid4())
+        output_path = os.path.join(UPLOAD_FOLDER, output_id, 'merged.geojson')
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        
+        # Initialize merger with custom threshold
+        merger = RoadMerger(similarity_threshold=threshold)
+        
+        try:
+            # Merge the roads and get statistics
+            merge_stats = merger.merge_roads(file1_path, file2_path, output_path)
+            
+            # Store merge operation in database
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute('''
+                    INSERT INTO merge_operations (
+                        file1_name, file2_name, similarity_threshold, output_file_id,
+                        total_roads_file1, total_roads_file2, total_roads_merged,
+                        roads_merged, roads_skipped, roads_added, merge_duration_ms,
+                        status, error_message
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    merge_stats['file1_name'],
+                    merge_stats['file2_name'],
+                    merge_stats['similarity_threshold'],
+                    merge_stats['output_file_id'],
+                    merge_stats['total_roads_file1'],
+                    merge_stats['total_roads_file2'],
+                    merge_stats['total_roads_merged'],
+                    merge_stats['roads_merged'],
+                    merge_stats['roads_skipped'],
+                    merge_stats['roads_added'],
+                    merge_stats['merge_duration_ms'],
+                    merge_stats['status'],
+                    merge_stats['error_message']
+                ))
+                
+                conn.commit()
+                
+            except Exception as e:
+                conn.rollback()
+                print(f"Error storing merge operation in database: {str(e)}")
+                # Continue with the response even if database storage fails
+            finally:
+                conn.close()
+            
+            # Read the merged file
+            try:
+                with open(output_path, 'r', encoding='utf-8') as f:
+                    merged_data = json.load(f)
+            except UnicodeDecodeError:
+                with open(output_path, 'r', encoding='latin-1') as f:
+                    merged_data = json.load(f)
+            
+            return jsonify({
+                'success': True,
+                'message': 'Roads merged successfully',
+                'merged_data': merged_data,
+                'output_id': output_id,
+                'stats': merger.stats
+            })
+            
+        except Exception as e:
+            # Store failed merge operation in database
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            try:
+                cursor.execute('''
+                    INSERT INTO merge_operations (
+                        file1_name, file2_name, similarity_threshold, output_file_id,
+                        total_roads_file1, total_roads_file2, total_roads_merged,
+                        roads_merged, roads_skipped, roads_added, merge_duration_ms,
+                        status, error_message
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    os.path.basename(file1_path),
+                    os.path.basename(file2_path),
+                    threshold,
+                    str(uuid.uuid4()),
+                    0, 0, 0, 0, 0, 0, 0,
+                    'failed',
+                    str(e)
+                ))
+                
+                conn.commit()
+                
+            except Exception as db_error:
+                conn.rollback()
+                print(f"Error storing failed merge operation in database: {str(db_error)}")
+            finally:
+                conn.close()
+            
+            raise e
+    
+    except Exception as e:
+        print(f"Error in merge_files: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # Serve static files

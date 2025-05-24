@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Road Data Merger</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+        
+        .control-panel {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(40, 40, 40, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 0 15px rgba(0,0,0,0.5);
+            max-width: 300px;
+        }
+        
+        .file-select {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        
+        .threshold-slider {
+            width: 100%;
+            margin: 15px 0;
+        }
+        
+        .threshold-value {
+            text-align: center;
+            margin-top: 5px;
+        }
+        
+        .merge-button {
+            width: 100%;
+            padding: 10px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-top: 15px;
+        }
+        
+        .merge-button:hover {
+            background-color: #45a049;
+        }
+        
+        .merge-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        .map-styles {
+            margin-top: 15px;
+        }
+        
+        .style-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 8px;
+        }
+        
+        .style-btn {
+            padding: 6px 10px;
+            background-color: #444;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        
+        .style-btn:hover {
+            background-color: #555;
+        }
+        
+        .style-btn.active {
+            background-color: #2196F3;
+        }
+        
+        .stats-panel {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+        
+        .stat-item {
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .back-link {
+            display: block;
+            color: #2196F3;
+            text-decoration: none;
+            margin-top: 15px;
+        }
+        
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="control-panel">
+        <h3>Road Data Merger</h3>
+        
+        <div class="file-selection">
+            <label for="file1-select">Base File:</label>
+            <select id="file1-select" class="file-select">
+                <option value="">Select base file...</option>
+            </select>
+            
+            <label for="file2-select">Compare File:</label>
+            <select id="file2-select" class="file-select">
+                <option value="">Select file to compare...</option>
+            </select>
+        </div>
+        
+        <div class="threshold-control">
+            <label for="threshold-slider">Similarity Threshold:</label>
+            <input type="range" id="threshold-slider" class="threshold-slider" 
+                   min="0" max="1" step="0.1" value="0.8">
+            <div id="threshold-value" class="threshold-value">0.8</div>
+        </div>
+        
+        <div class="map-styles">
+            <h4>Map Style</h4>
+            <div class="style-buttons">
+                <button class="style-btn" data-style="standard">Standard</button>
+                <button class="style-btn" data-style="satellite">Satellite</button>
+                <button class="style-btn" data-style="streets">Streets</button>
+                <button class="style-btn" data-style="outdoors">Outdoors</button>
+                <button class="style-btn" data-style="light">Light</button>
+                <button class="style-btn" data-style="dark">Dark</button>
+            </div>
+        </div>
+        
+        <button id="merge-button" class="merge-button" disabled>Merge Files</button>
+        
+        <div id="stats-panel" class="stats-panel" style="display: none;">
+            <h4>Merge Statistics</h4>
+            <div id="stats-content"></div>
+            <button id="download-button" class="merge-button" style="background-color: #2196F3; margin-top: 10px; display: none;">
+                Download Merged File
+            </button>
+        </div>
+        
+        <a href="/analyst" class="back-link">← Back to Analyst View</a>
+    </div>
+    
+    <div id="map"></div>
+    
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    
+    <script>
+        // Initialize the map centered on Mumbai
+        const map = L.map('map').setView([19.0760, 72.8777], 12);
+        
+        // Define tile layers
+        const tileLayers = {
+            standard: L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }),
+            satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                maxZoom: 19
+            }),
+            streets: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            }),
+            outdoors: L.tileLayer('https://{s}.tile.thunderforest.com/outdoors/{z}/{x}/{y}.png?apikey=6170aad10dfd42a38d4d8c709a536f38', {
+                attribution: '&copy; <a href="http://www.thunderforest.com/">Thunderforest</a>, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 22
+            }),
+            light: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20
+            }),
+            dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+                subdomains: 'abcd',
+                maxZoom: 20
+            })
+        };
+        
+        // Start with dark theme
+        tileLayers.dark.addTo(map);
+        let currentTileLayer = tileLayers.dark;
+        
+        // Set the initial active button
+        document.querySelector('[data-style="dark"]').classList.add('active');
+        
+        // Variables to store GeoJSON data
+        let file1Data = null;
+        let file2Data = null;
+        let mergedData = null;
+        let file1Layer = null;
+        let file2Layer = null;
+        let mergedLayer = null;
+        let storedFiles = null;
+        
+        // Function to get stored GeoJSON data
+        function getStoredGeoJSONData() {
+            try {
+                const data = sessionStorage.getItem('geojsonFiles');
+                return data ? JSON.parse(data) : null;
+            } catch (error) {
+                console.error('Error retrieving data from sessionStorage:', error);
+                return null;
+            }
+        }
+        
+        // Fetch available GeoJSON files
+        function fetchAvailableFiles() {
+            // Get data from sessionStorage
+            const storedData = getStoredGeoJSONData();
+            if (storedData && storedData.success) {
+                storedFiles = storedData;
+                populateFileSelects(storedData.data);
+            } else {
+                console.error('No GeoJSON data found in sessionStorage');
+                alert('Error: No GeoJSON data available. Please return to the analyst view first.');
+            }
+        }
+        
+        // Populate file select dropdowns
+        function populateFileSelects(files) {
+            const file1Select = document.getElementById('file1-select');
+            const file2Select = document.getElementById('file2-select');
+            
+            // Clear existing options
+            file1Select.innerHTML = '<option value="">Select base file...</option>';
+            file2Select.innerHTML = '<option value="">Select file to compare...</option>';
+            
+            // Add options for each file
+            files.forEach(file => {
+                const option1 = document.createElement('option');
+                option1.value = file.name;
+                option1.textContent = `${file.name} (${file.vendor_name})`;
+                file1Select.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = file.name;
+                option2.textContent = `${file.name} (${file.vendor_name})`;
+                file2Select.appendChild(option2);
+            });
+        }
+        
+        // File select event listeners
+        document.getElementById('file1-select').addEventListener('change', function(e) {
+            const fileId = e.target.value;
+            if (fileId && storedFiles) {
+                const selectedFile = storedFiles.data.find(file => file.name === fileId);
+                if (selectedFile && selectedFile.geojson_data) {
+                    file1Data = selectedFile.geojson_data;
+                    updateMap();
+                    updateMergeButton();
+                } else {
+                    console.error('No GeoJSON data found for selected file');
+                    alert('Error: No GeoJSON data available for selected file');
+                }
+            } else {
+                file1Data = null;
+                updateMap();
+                updateMergeButton();
+            }
+        });
+        
+        document.getElementById('file2-select').addEventListener('change', function(e) {
+            const fileId = e.target.value;
+            if (fileId && storedFiles) {
+                const selectedFile = storedFiles.data.find(file => file.name === fileId);
+                if (selectedFile && selectedFile.geojson_data) {
+                    file2Data = selectedFile.geojson_data;
+                    updateMap();
+                    updateMergeButton();
+                } else {
+                    console.error('No GeoJSON data found for selected file');
+                    alert('Error: No GeoJSON data available for selected file');
+                }
+            } else {
+                file2Data = null;
+                updateMap();
+                updateMergeButton();
+            }
+        });
+        
+        // Threshold slider event listener
+        document.getElementById('threshold-slider').addEventListener('input', function(e) {
+            document.getElementById('threshold-value').textContent = e.target.value;
+        });
+        
+        // Update map with current data
+        function updateMap() {
+            // Clear existing layers
+            if (file1Layer) map.removeLayer(file1Layer);
+            if (file2Layer) map.removeLayer(file2Layer);
+            if (mergedLayer) map.removeLayer(mergedLayer);
+            
+            // Add file 1 layer (blue)
+            if (file1Data) {
+                file1Layer = L.geoJSON(file1Data, {
+                    style: {
+                        color: '#3388ff',
+                        weight: 3,
+                        opacity: 0.7
+                    }
+                }).addTo(map);
+            }
+            
+            // Add file 2 layer (red)
+            if (file2Data) {
+                file2Layer = L.geoJSON(file2Data, {
+                    style: {
+                        color: '#ff4444',
+                        weight: 3,
+                        opacity: 0.7
+                    }
+                }).addTo(map);
+            }
+            
+            // Add merged layer if available
+            if (mergedData) {
+                mergedLayer = L.geoJSON(mergedData, {
+                    style: {
+                        color: '#4CAF50',
+                        weight: 4,
+                        opacity: 0.8
+                    }
+                }).addTo(map);
+            }
+            
+            // Fit map to show all layers
+            const layers = [];
+            if (file1Layer) layers.push(file1Layer);
+            if (file2Layer) layers.push(file2Layer);
+            if (mergedLayer) layers.push(mergedLayer);
+            
+            if (layers.length > 0) {
+                const group = L.featureGroup(layers);
+                map.fitBounds(group.getBounds());
+            }
+        }
+        
+        // Update merge button state
+        function updateMergeButton() {
+            const mergeButton = document.getElementById('merge-button');
+            mergeButton.disabled = !(file1Data && file2Data);
+        }
+        
+        // Merge button click handler
+        document.getElementById('merge-button').addEventListener('click', function() {
+            if (!file1Data || !file2Data) return;
+            
+            const file1Id = document.getElementById('file1-select').value;
+            const file2Id = document.getElementById('file2-select').value;
+            const threshold = document.getElementById('threshold-slider').value;
+            
+            // Show loading state
+            this.textContent = 'Merging...';
+            this.disabled = true;
+            
+            // Call merge API
+            fetch('/api/merge-files', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    file1_id: file1Id,
+                    file2_id: file2Id,
+                    threshold: threshold
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                mergedData = data.merged_data;
+                updateMap();
+                displayStats(data.stats);
+                
+                // Show download button and store output_id
+                const downloadButton = document.getElementById('download-button');
+                downloadButton.style.display = 'block';
+                downloadButton.dataset.outputId = data.output_id;
+            })
+            .catch(error => {
+                console.error('Error merging files:', error);
+                alert('Error merging files: ' + error.message);
+            })
+            .finally(() => {
+                this.textContent = 'Merge Files';
+                this.disabled = false;
+            });
+        });
+        
+        // Download button click handler
+        document.getElementById('download-button').addEventListener('click', function() {
+            const outputId = this.dataset.outputId;
+            if (!outputId) {
+                alert('No merged file available');
+                return;
+            }
+            
+            // Trigger download
+            window.location.href = `/api/download-merged?upload_id=${outputId}`;
+        });
+        
+        // Display merge statistics
+        function displayStats(stats) {
+            const statsPanel = document.getElementById('stats-panel');
+            const statsContent = document.getElementById('stats-content');
+            
+            statsContent.innerHTML = `
+                <div class="stat-item">
+                    <span>Total roads in file 1:</span>
+                    <span>${stats.total_roads_file1}</span>
+                </div>
+                <div class="stat-item">
+                    <span>Total roads in file 2:</span>
+                    <span>${stats.total_roads_file2}</span>
+                </div>
+                <div class="stat-item">
+                    <span>Matched roads:</span>
+                    <span>${stats.matched_roads}</span>
+                </div>
+                <div class="stat-item">
+                    <span>Unmatched roads from file 1:</span>
+                    <span>${stats.unmatched_roads_file1}</span>
+                </div>
+                <div class="stat-item">
+                    <span>Unmatched roads from file 2:</span>
+                    <span>${stats.unmatched_roads_file2}</span>
+                </div>
+                <div class="stat-item">
+                    <span>Match rate:</span>
+                    <span>${((stats.matched_roads / Math.max(stats.total_roads_file1, stats.total_roads_file2)) * 100).toFixed(2)}%</span>
+                </div>
+            `;
+            
+            statsPanel.style.display = 'block';
+        }
+        
+        // Map style button event listeners
+        document.querySelectorAll('.style-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const style = this.getAttribute('data-style');
+                
+                // Update active button
+                document.querySelectorAll('.style-btn').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Remove current tile layer
+                if (currentTileLayer) {
+                    map.removeLayer(currentTileLayer);
+                }
+                
+                // Add selected tile layer
+                tileLayers[style].addTo(map);
+                currentTileLayer = tileLayers[style];
+            });
+        });
+        
+        // Initialize
+        fetchAvailableFiles();
+    </script>
+</body>
+</html> 

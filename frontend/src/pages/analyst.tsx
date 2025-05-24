@@ -23,7 +23,13 @@ import {
   Zap,
   Star,
   Shield,
-  Loader2
+  Loader2,
+  History,
+  FileText,
+  Timer,
+  CheckSquare,
+  XSquare,
+  PlusSquare
 } from 'lucide-react';
 
 // Mock vendor data with trust scores
@@ -98,6 +104,40 @@ const agentStates = {
   }
 };
 
+// Add new interface for merge operations
+interface MergeOperation {
+  id: number;
+  file1_name: string;
+  file2_name: string;
+  created_at: string;
+  merge_date: string;
+  merge_duration_ms: number;
+  output_file_id: string;
+  roads_added: number;
+  roads_merged: number;
+  roads_skipped: number;
+  similarity_threshold: number;
+  status: string;
+  total_roads_file1: number;
+  total_roads_file2: number;
+  total_roads_merged: number;
+  error_message: string | null;
+  updated_at: string;
+}
+
+interface MergeOperationsResponse {
+  data: {
+    operations: MergeOperation[];
+    pagination: {
+      page: number;
+      per_page: number;
+      total: number;
+      total_pages: number;
+    };
+  };
+  success: boolean;
+}
+
 const AnalystDashboard = () => {
   const [trustThreshold, setTrustThreshold] = useState<number>(75);
   const [selectedVendor, setSelectedVendor] = useState<number | null>(null);
@@ -105,6 +145,8 @@ const AnalystDashboard = () => {
   const [currentAgentState, setCurrentAgentState] = useState(agentStates);
   const [autoMergeEnabled, setAutoMergeEnabled] = useState<boolean>(false);
   const [processingDemo, setProcessingDemo] = useState<boolean>(false);
+  const [mergeOperations, setMergeOperations] = useState<MergeOperation[]>([]);
+  const [loadingMergeHistory, setLoadingMergeHistory] = useState(false);
   
   // Function to simulate AI agent process
   const runAgentAnalysis = () => {
@@ -227,6 +269,27 @@ const AnalystDashboard = () => {
     }
   };
 
+  // Add function to fetch merge operations
+  const fetchMergeOperations = async () => {
+    setLoadingMergeHistory(true);
+    try {
+      const response = await fetch('http://127.0.0.1:5000/merge-operations/list');
+      const data: MergeOperationsResponse = await response.json();
+      if (data.success) {
+        setMergeOperations(data.data.operations);
+      }
+    } catch (error) {
+      console.error('Error fetching merge operations:', error);
+    } finally {
+      setLoadingMergeHistory(false);
+    }
+  };
+
+  // Fetch merge operations on component mount
+  useEffect(() => {
+    fetchMergeOperations();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <Header userType="analyst" />
@@ -250,6 +313,10 @@ const AnalystDashboard = () => {
             <TabsTrigger value="map-view">
               <MapPin className="w-4 h-4 mr-2" />
               Map View
+            </TabsTrigger>
+            <TabsTrigger value="merge-history">
+              <History className="w-4 h-4 mr-2" />
+              Merge History
             </TabsTrigger>
           </TabsList>
           
@@ -618,6 +685,108 @@ const AnalystDashboard = () => {
             <div className="h-[calc(100vh-250px)]">
               <MapView />
             </div>
+          </TabsContent>
+          
+          <TabsContent value="merge-history" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center space-x-2">
+                  <History className="w-5 h-5 text-blue-500" />
+                  <span>Merge Operations History</span>
+                </CardTitle>
+                <CardDescription>
+                  Track and analyze previous road data merge operations
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingMergeHistory ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {mergeOperations.map((operation) => (
+                      <div key={operation.id} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center space-x-2">
+                            <FileText className="w-5 h-5 text-gray-500" />
+                            <h3 className="font-medium">Merge Operation #{operation.id}</h3>
+                          </div>
+                          <Badge className={operation.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}>
+                            {operation.status}
+                          </Badge>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-500">Files</p>
+                            <p className="text-sm font-medium truncate" title={`${operation.file1_name} + ${operation.file2_name}`}>
+                              {operation.file1_name} + {operation.file2_name}
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-500">Duration</p>
+                            <p className="text-sm font-medium">
+                              <Timer className="w-4 h-4 inline mr-1" />
+                              {(operation.merge_duration_ms / 1000).toFixed(2)}s
+                            </p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-500">Similarity Threshold</p>
+                            <p className="text-sm font-medium">{operation.similarity_threshold}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm text-gray-500">Date</p>
+                            <p className="text-sm font-medium">{new Date(operation.created_at).toLocaleString()}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                          <div className="bg-blue-50 p-3 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <PlusSquare className="w-4 h-4 text-blue-600" />
+                              <span className="text-sm font-medium">Added</span>
+                            </div>
+                            <p className="text-lg font-bold text-blue-700 mt-1">{operation.roads_added}</p>
+                          </div>
+                          <div className="bg-green-50 p-3 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <CheckSquare className="w-4 h-4 text-green-600" />
+                              <span className="text-sm font-medium">Merged</span>
+                            </div>
+                            <p className="text-lg font-bold text-green-700 mt-1">{operation.roads_merged}</p>
+                          </div>
+                          <div className="bg-orange-50 p-3 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <XSquare className="w-4 h-4 text-orange-600" />
+                              <span className="text-sm font-medium">Skipped</span>
+                            </div>
+                            <p className="text-lg font-bold text-orange-700 mt-1">{operation.roads_skipped}</p>
+                          </div>
+                          <div className="bg-purple-50 p-3 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <BarChart3 className="w-4 h-4 text-purple-600" />
+                              <span className="text-sm font-medium">Total</span>
+                            </div>
+                            <p className="text-lg font-bold text-purple-700 mt-1">{operation.total_roads_merged}</p>
+                          </div>
+                        </div>
+
+                        {operation.error_message && (
+                          <Alert className="mt-4 bg-red-50 border-red-200">
+                            <AlertTriangle className="w-4 h-4 text-red-600" />
+                            <AlertTitle className="text-red-700">Error</AlertTitle>
+                            <AlertDescription className="text-red-600 text-xs">
+                              {operation.error_message}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
